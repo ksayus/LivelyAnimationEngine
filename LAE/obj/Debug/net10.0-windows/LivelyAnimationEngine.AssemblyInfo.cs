@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LivelyAnimationEngine")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+54397f53e0565905c60a690fed3a8797a950bcd8")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+30c06c198522d242e0ec89364cf4577c6d37825f")]
 [assembly: System.Reflection.AssemblyProductAttribute("LivelyAnimationEngine")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LivelyAnimationEngine")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
