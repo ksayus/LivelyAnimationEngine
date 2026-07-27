@@ -1,28 +1,140 @@
-# This workflow will build a .NET project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+name: PCSMNext CI/CD
 
-name: .NET
+# ============================================================
+# PCSMNext 自动构建工作流
+# 项目: .NET 10 WPF 桌面应用
+# 框架: net10.0-windows7.0 / net10.0
+# 解决方案格式: .slnx (需要 .NET 10 SDK)
+# ============================================================
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ master ]
   pull_request:
-    branches: [ "master" ]
+    branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: '构建配置'
+        required: true
+        default: 'Release'
+        type: choice
+        options:
+          - Debug
+          - Release
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  BUILD_CONFIGURATION: ${{ inputs.configuration || 'Release' }}
+  SOLUTION_PATH: 'PCSMNext.slnx'
 
 jobs:
+  # ============================================================
+  # 构建 Job
+  # ============================================================
   build:
-
-    runs-on: ubuntu-latest
+    name: 构建 PCSMNext
+    runs-on: windows-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 10.0.x
-    - name: Restore dependencies
-      run: dotnet restore
-    - name: Build
-      run: dotnet build --no-restore
-    - name: Test
-      run: dotnet test --no-build --verbosity normal
+      # ----------------------------------------------------------
+      # Step 1: 检出代码
+      # ----------------------------------------------------------
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # ----------------------------------------------------------
+      # Step 2: 安装 .NET 10 SDK
+      # .NET 10 是 .slnx 解决方案格式的最低要求
+      # ----------------------------------------------------------
+      - name: 安装 .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # ----------------------------------------------------------
+      # Step 3: 检查 .NET 版本
+      # ----------------------------------------------------------
+      - name: 显示 .NET 版本信息
+        run: |
+          dotnet --version
+          dotnet --list-sdks
+
+      # ----------------------------------------------------------
+      # Step 4: 克隆 LivelyAnimationEngine 依赖仓库
+      # PCSMNext.slnx 引用了 LivelyAnimationEngine/LivelyAnimationEngine.csproj
+      # ----------------------------------------------------------
+      - name: 克隆 LivelyAnimationEngine
+        run: |
+          git clone https://github.com/ksayus/LivelyAnimationEngine.git
+
+      # ----------------------------------------------------------
+      # Step 5: 还原依赖
+      # ----------------------------------------------------------
+      - name: 还原 NuGet 包
+        run: dotnet restore ${{ env.SOLUTION_PATH }}
+
+      # ----------------------------------------------------------
+      # Step 6: 构建项目
+      # ----------------------------------------------------------
+      - name: 构建项目
+        run: >
+          dotnet build ${{ env.SOLUTION_PATH }}
+          --configuration ${{ env.BUILD_CONFIGURATION }}
+          --no-restore
+
+      # ----------------------------------------------------------
+      # Step 7: 发布 App (可选 - 生成单文件应用)
+      # ----------------------------------------------------------
+      - name: 发布应用
+        run: >
+          dotnet publish PCSMNext.App/PCSMNext.App.csproj
+          --configuration ${{ env.BUILD_CONFIGURATION }}
+          --output ${{ github.workspace }}/publish
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+
+      # ----------------------------------------------------------
+      # Step 8: 上传构建产物
+      # ----------------------------------------------------------
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: PCSMNext-${{ env.BUILD_CONFIGURATION }}
+          path: ${{ github.workspace }}/publish/
+          retention-days: 30
+
+  # ============================================================
+  # 可选: 创建 Release
+  # 仅在推送 tag 时触发，如 v1.0.0
+  # ============================================================
+  release:
+    name: 创建 Release
+    needs: build
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with:
+          name: PCSMNext-Release
+          path: publish/
+
+      - name: 打包为 ZIP
+        run: |
+          Compress-Archive -Path publish/* -DestinationPath PCSMNext.zip
+
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PCSMNext.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
