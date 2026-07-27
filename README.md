@@ -172,13 +172,6 @@ LAE/
 │   ├── UI.csproj
 │   ├── MainWindow.xaml
 │   └── MainWindow.xaml.cs
-├── DemoApp/                       # 基础 Demo
-│   ├── DemoApp.csproj
-│   ├── MainWindow.xaml
-│   └── MainWindow.xaml.cs
-└── TestRunner/                    # 控制台单元测试
-    ├── TestRunner.csproj
-    └── Program.cs
 ```
 
 ## 运行
@@ -186,12 +179,6 @@ LAE/
 ```bash
 # 全功能测试界面
 dotnet run --project UI/UI.csproj
-
-# 基础 Demo
-dotnet run --project DemoApp/DemoApp.csproj
-
-# 单元测试
-dotnet run --project TestRunner/TestRunner.csproj
 ```
 
 ## 环境要求
