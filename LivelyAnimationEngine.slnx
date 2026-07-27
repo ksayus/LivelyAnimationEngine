@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="LAE/LivelyAnimationEngine.csproj" />
+  <Project Path="UI/UI.csproj" Id="262725c0-c05e-4106-8c53-f92d82e6f56e" />
+</Solution>
