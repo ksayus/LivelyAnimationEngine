@@ -11,12 +11,12 @@
 using System;
 using System.Reflection;
 
-[assembly: System.Reflection.AssemblyCompanyAttribute("UI")]
-[assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("LivelyAnimationEngine")]
+[assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
 [assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4c39a5df975b7f1d1caaf5c17f54413aedfa8eeb")]
-[assembly: System.Reflection.AssemblyProductAttribute("UI")]
-[assembly: System.Reflection.AssemblyTitleAttribute("UI")]
+[assembly: System.Reflection.AssemblyProductAttribute("LivelyAnimationEngine")]
+[assembly: System.Reflection.AssemblyTitleAttribute("LivelyAnimationEngine")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
 [assembly: System.Runtime.Versioning.TargetPlatformAttribute("Windows7.0")]
 [assembly: System.Runtime.Versioning.SupportedOSPlatformAttribute("Windows7.0")]
