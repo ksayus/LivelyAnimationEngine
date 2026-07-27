@@ -1,0 +1,4 @@
+<Solution>
+	<Project Path="LAE/LivelyAnimationEngine.csproj" />
+	<Project Path="UI/UI.csproj" />
+</Solution>
