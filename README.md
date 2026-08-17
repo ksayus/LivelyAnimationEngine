@@ -1,6 +1,6 @@
 # LAE — Lively Animation Engine
 
-已使用的项目 [OmniArk](https://github.com/ksayus/PCSMNext](https://github.com/ksayus/OmniArk )
+已使用的项目 [OmniArk](https://github.com/ksayus/OmniArk)
 
 一个轻量、高性能的 WPF 动画引擎，提供流式 API 构建复杂动画序列，支持并行与串行编排、丰富的缓动函数、以及全局速度控制。
 
