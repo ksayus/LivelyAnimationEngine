@@ -1,27 +1,44 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Media;
 
 namespace LAE
 {
+    /// <summary>
+    /// 引擎内部动画动作契约 (非公开 API)
+    /// </summary>
     internal interface ILAAction
     {
+        /// <summary>动作时长 (毫秒)</summary>
         double DurationMs { get; }
+        /// <summary>动作开始前的一次性延迟 (毫秒)</summary>
         double DelayMs { get; }
-        bool WaitForPrevious { get; } // 序列模式中是否等前序完成
+        /// <summary>序列模式中是否等待前序动作完成</summary>
+        bool WaitForPrevious { get; }
+        /// <summary>动作是否已完成</summary>
         bool IsDone { get; }
-        void Update(double elapsedMs); // 每帧调用
-        void OnStart(); // 延迟结束后首次帧
+        /// <summary>延迟结束后首次帧调用</summary>
+        void OnStart();
+        /// <summary>每帧调用, elapsedMs 已扣除延迟</summary>
+        void Update(double elapsedMs);
     }
 
+    /// <summary>
+    /// 单一数值目标动画基类。
+    /// <para>
+    /// 采用 <b>绝对写入</b> 模式: 记录起始值与终点值, 每帧写入
+    /// <c>start + (end - start) * easing(t)</c>。
+    /// 相较逐帧回读属性再累加增量, 该方式没有浮点累积误差,
+    /// 且每帧免除一次 <see cref="DependencyObject.GetValue"/> 装箱回读。
+    /// </para>
+    /// </summary>
     internal abstract class LAActionBase : ILAAction
     {
-        protected Func<double, double> EasingFn;
-        protected double _startValue;       // OnStart 抽象
-        private double _endValue;           // 终点
-        private double _relativeDelta;      // 总量值
-        private bool _relative;             // true = By false = To
-        private double _lastProgress;       // 上一帧进度
-        private bool _started;
+        private readonly double _targetValue;   // To 模式为绝对终点; By 模式为相对增量
+        private readonly bool _relative;        // true = By(相对), false = To(绝对)
+        private readonly Func<double, double> _easing;
+
+        protected double StartValue;            // OnStart 时回读的真实起点
+        protected double EndValue;              // 解析后的绝对终点
 
         public double DurationMs { get; }
         public double DelayMs { get; }
@@ -43,100 +60,73 @@ namespace LAE
             Func<double, double> easing,
             bool waitForPrevious)
         {
+            _targetValue = value;
             _relative = relative;
-            if (relative)
-            {
-                _relativeDelta = value;
-                _endValue = 0; // OnStart 时推导
-            }else
-            {
-                _endValue = value;
-                _relativeDelta = 0;
-            }
+            _easing = easing ?? Easing.Linear;
 
-            DurationMs = Math.Max(durationMs, 1);
-            DelayMs = Math.Max(delayMs, 0);
+            // 时长下限 1ms, 避免除零; 延迟不允许为负
+            DurationMs = durationMs > 1.0 ? durationMs : 1.0;
+            DelayMs = delayMs > 0 ? delayMs : 0;
             WaitForPrevious = waitForPrevious;
-            EasingFn = easing ?? Easing.Linear;
         }
 
         public void OnStart()
         {
-            if (_started) return;
-            _started = true;
-            _startValue = ReadCurrentValue();   // 回读真实值
-            if (_relative)
-                _endValue = _startValue + _relativeDelta;
+            // 幂等: 引擎保证每个动作只调用一次, 重复调用也不会累积偏移
+            StartValue = ReadCurrentValue();                 // 回读一次真实起点
+            EndValue = _relative ? StartValue + _targetValue : _targetValue;
         }
 
         public void Update(double elapsedMs)
         {
             if (IsDone) return;
 
-            double t = Math.Clamp(elapsedMs / DurationMs, 0, 1);
-            double progress = EasingFn(t);
-            double frameDelta = (progress - _lastProgress)
-                                * (_endValue - _startValue);
-            _lastProgress = progress;
-            ApplyValue(frameDelta); //只写增量
+            double t = elapsedMs >= DurationMs ? 1.0 : (elapsedMs <= 0 ? 0.0 : elapsedMs / DurationMs);
+            double p = _easing(t);
+            if (p < 0) p = 0;
+            else if (p > 1) p = 1;
+
+            ApplyValue(StartValue + (EndValue - StartValue) * p);
+
             if (t >= 1.0) IsDone = true;
         }
 
+        /// <summary>回读目标属性当前值 (仅 OnStart 调用一次)</summary>
         protected abstract double ReadCurrentValue();
-        protected abstract void ApplyValue(double delta);
+
+        /// <summary>写入本帧的绝对值</summary>
+        protected abstract void ApplyValue(double value);
     }
 
+    /// <summary>
+    /// 通用依赖属性数值动画 (Move 的 X/Y、Width、Height、Opacity、Scale 等均由此实现)
+    /// </summary>
     internal sealed class DependencyPropertyLA : LAActionBase
     {
         private readonly DependencyObject _target;
         private readonly DependencyProperty _property;
+        private readonly double _minValue;   // 结果下限, 默认 double.NegativeInfinity
 
         public DependencyPropertyLA(
             DependencyObject target, DependencyProperty property,
             double value, bool relative,
             double duration, double delayMs,
-            Func<double, double> easing, bool waitForPrevious)
+            Func<double, double> easing, bool waitForPrevious,
+            double minValue = double.NegativeInfinity)
             : base(value, relative, duration, delayMs, easing, waitForPrevious)
         {
-            _target = target;
-            _property = property;
+            _target = target ?? throw new ArgumentNullException(nameof(target));
+            _property = property ?? throw new ArgumentNullException(nameof(property));
+            _minValue = minValue;
         }
 
         protected override double ReadCurrentValue()
-        {
-            var val = _target.GetValue(_property);
-            return Convert.ToDouble(val);
-        }
+            => Convert.ToDouble(_target.GetValue(_property));
 
-        protected override void ApplyValue(double delta)
+        protected override void ApplyValue(double value)
         {
-            double current = ReadCurrentValue();
-            _target.SetValue(_property, current + delta);
-        }
-    }
-
-    /// <summary>
-    /// 对 ScaleTransform 的 ScaleX/ScaleY 进行同步缩放动画
-    /// </summary>
-    internal sealed class ScaleTransformLA : LAActionBase
-    {
-        private readonly ScaleTransform _transform;
-
-        public ScaleTransformLA(
-            ScaleTransform transform,
-            double value, bool relative,
-            double durationMs, double delayMs,
-            Func<double, double> easing, bool waitForPrevious)
-            : base(value, relative, durationMs, delayMs, easing, waitForPrevious)
-        {
-            _transform = transform;
-        }
-
-        protected override double ReadCurrentValue() => _transform.ScaleX;
-        protected override void ApplyValue(double delta)
-        {
-            _transform.ScaleX = Math.Max(_transform.ScaleX + delta, 0);
-            _transform.ScaleY = Math.Max(_transform.ScaleY + delta, 0);
+            if (value < _minValue) value = _minValue;
+            _target.SetValue(_property, value);
         }
     }
 
@@ -154,53 +144,30 @@ namespace LAE
             Func<double, double> easing, bool waitForPrevious)
             : base(value, relative, durationMs, delayMs, easing, waitForPrevious)
         {
-            _transform = transform;
+            _transform = transform ?? throw new ArgumentNullException(nameof(transform));
         }
 
         protected override double ReadCurrentValue() => _transform.Angle;
-        protected override void ApplyValue(double delta)
-        {
-            _transform.Angle += delta;
-        }
+        protected override void ApplyValue(double value) => _transform.Angle = value;
     }
 
     /// <summary>
-    /// 对 SkewTransform 的 AngleX/AngleY 进行偏斜动画
-    /// </summary>
-    internal sealed class SkewTransformLA : LAActionBase
-    {
-        private readonly SkewTransform _transform;
-
-        public SkewTransformLA(
-            SkewTransform transform,
-            double value, bool relative,
-            double durationMs, double delayMs,
-            Func<double, double> easing, bool waitForPrevious)
-            : base(value, relative, durationMs, delayMs, easing, waitForPrevious)
-        {
-            _transform = transform;
-        }
-
-        protected override double ReadCurrentValue() => _transform.AngleX;
-        protected override void ApplyValue(double delta)
-        {
-            _transform.AngleX += delta;
-            _transform.AngleY += delta;
-        }
-    }
-
-    /// <summary>
-    /// 对 SolidColorBrush 的 Color 进行动画
-    /// 在sRGB 空间按 A/R/G/B 四通道线性插值, 实现颜色平滑过渡
-    /// 直接写 brush.Color, 要求画刷未被冻结
-    /// 若传入 target + property, 冻结晶刷克隆后自动回设到元素上
+    /// 对 SolidColorBrush 的 Color 进行动画 (sRGB 四通道线性插值)。
+    /// <para>
+    /// 冻结晶刷会在动画启动时克隆并回设到元素上, 因此构建阶段不会产生
+    /// 任何界面副作用; 未冻结的画刷直接就地改写。
+    /// </para>
     /// </summary>
     internal sealed class ColorLA : ILAAction
     {
-        private readonly SolidColorBrush _brush;
+        private readonly DependencyObject? _target;      // 需要回设画刷的目标元素
+        private readonly DependencyProperty? _property;  // 画刷依赖属性
         private readonly Color _endColor;
         private readonly Func<double, double> _easing;
-        private Color _startColor;
+
+        private SolidColorBrush _brush = null!;          // OnStart 解析
+        private double _startA, _startR, _startG, _startB;
+        private double _endA, _endR, _endG, _endB;
         private bool _started;
         private bool _done;
 
@@ -209,70 +176,120 @@ namespace LAE
         public bool WaitForPrevious { get; }
         public bool IsDone => _done;
 
+        /// <summary>
+        /// 直接对画刷实例做动画。
+        /// </summary>
+        /// <param name="brush">目标画刷 (会被就地改写)</param>
         public ColorLA(
             SolidColorBrush brush, Color endColor,
             double durationMs, double delayMs,
-            Func<double, double> easing, bool waitForPrevious,
-            DependencyObject? target = null, DependencyProperty? property = null)
+            Func<double, double> easing, bool waitForPrevious)
+            : this(endColor, durationMs, delayMs, easing, waitForPrevious)
         {
-            if (brush.IsFrozen)
-            {
-                brush = brush.Clone();
-                // 将克隆体回设到元素, 确保动画可见
-                if (target != null && property != null)
-                    target.SetValue(property, brush);
-            }
-
             _brush = brush ?? throw new ArgumentNullException(nameof(brush));
+        }
+
+        /// <summary>
+        /// 对元素的画刷依赖属性做动画, 自动处理冻结晶刷。
+        /// </summary>
+        /// <param name="target">目标元素</param>
+        /// <param name="property">画刷依赖属性 (如 Shape.FillProperty)</param>
+        public ColorLA(
+            DependencyObject target, DependencyProperty property, Color endColor,
+            double durationMs, double delayMs,
+            Func<double, double> easing, bool waitForPrevious)
+            : this(endColor, durationMs, delayMs, easing, waitForPrevious)
+        {
+            _target = target ?? throw new ArgumentNullException(nameof(target));
+            _property = property ?? throw new ArgumentNullException(nameof(property));
+        }
+
+        private ColorLA(
+            Color endColor, double durationMs, double delayMs,
+            Func<double, double> easing, bool waitForPrevious)
+        {
             _endColor = endColor;
-            DurationMs = Math.Max(durationMs, 1);
-            DelayMs = Math.Max(delayMs, 0);
             _easing = easing ?? Easing.Linear;
+            DurationMs = durationMs > 1.0 ? durationMs : 1.0;
+            DelayMs = delayMs > 0 ? delayMs : 0;
             WaitForPrevious = waitForPrevious;
+
+            _endA = endColor.A;
+            _endR = endColor.R;
+            _endG = endColor.G;
+            _endB = endColor.B;
         }
 
         public void OnStart()
         {
             if (_started) return;
             _started = true;
-            _startColor = _brush.Color;
+
+            if (_target != null)
+            {
+                // 元素画刷: 冻结晶刷不可写, 克隆后回设
+                if (_target.GetValue(_property!) is not SolidColorBrush current)
+                    throw new InvalidOperationException(
+                        $"Property {_property!.Name} is not a SolidColorBrush");
+
+                _brush = current.IsFrozen ? current.CloneCurrentValue() : current;
+                if (!ReferenceEquals(_brush, current))
+                    _target.SetValue(_property!, _brush);
+            }
+
+            Color c = _brush.Color;
+            _startA = c.A;
+            _startR = c.R;
+            _startG = c.G;
+            _startB = c.B;
         }
 
         public void Update(double elapsedMs)
         {
             if (_done) return;
 
-            double t = Math.Clamp(elapsedMs / DurationMs, 0, 1);
+            double t = elapsedMs >= DurationMs ? 1.0 : (elapsedMs <= 0 ? 0.0 : elapsedMs / DurationMs);
             double p = _easing(t);
-            _brush.Color = LerpColor(_startColor, _endColor, p);
+            if (p < 0) p = 0;
+            else if (p > 1) p = 1;
 
             if (t >= 1.0)
             {
                 _brush.Color = _endColor;
                 _done = true;
+                return;
             }
+
+            _brush.Color = Color.FromArgb(
+                Mix(_startA, _endA, p),
+                Mix(_startR, _endR, p),
+                Mix(_startG, _endG, p),
+                Mix(_startB, _endB, p));
         }
 
-        private static Color LerpColor(Color a, Color b, double p)
+        private static byte Mix(double from, double to, double p)
         {
-            return Color.FromArgb(
-                (byte)Math.Round(a.A + (b.A - a.A) * p),
-                (byte)Math.Round(a.R + (b.R - a.R) * p),
-                (byte)Math.Round(a.G + (b.G - a.G) * p),
-                (byte)Math.Round(a.B + (b.B - a.B) * p));
+            double v = from + (to - from) * p;
+            if (v <= 0) return 0;
+            if (v >= 255) return 255;
+            return (byte)(v + 0.5);
         }
     }
 
+    /// <summary>
+    /// 静止停顿动作 (恒为序列分隔点)
+    /// </summary>
     internal sealed class WaitLA : ILAAction
     {
         public double DurationMs { get; }
         public double DelayMs => 0;
         public bool WaitForPrevious { get; }
         public bool IsDone { get; private set; }
+        public bool IsZero => DurationMs <= 0;
 
         public WaitLA(double durationMs, bool waitForPrevious)
         {
-            DurationMs = Math.Max(durationMs, 0);
+            DurationMs = durationMs > 0 ? durationMs : 0;
             WaitForPrevious = waitForPrevious;
         }
 
@@ -285,6 +302,9 @@ namespace LAE
         }
     }
 
+    /// <summary>
+    /// 代码回调动作 (时长 0, 可带延迟)
+    /// </summary>
     internal sealed class CallbackLA : ILAAction
     {
         private readonly Action _callback;
@@ -298,7 +318,7 @@ namespace LAE
         public CallbackLA(Action callback, double delayMs, bool waitForPrevious)
         {
             _callback = callback ?? throw new ArgumentNullException(nameof(callback));
-            DelayMs = delayMs;
+            DelayMs = delayMs > 0 ? delayMs : 0;
             WaitForPrevious = waitForPrevious;
         }
 
@@ -306,11 +326,9 @@ namespace LAE
 
         public void Update(double elapsedMs)
         {
-            if (!_executed)
-            {
-                _executed = true;
-                _callback();
-            }
+            if (_executed) return;
+            _executed = true;
+            _callback();
         }
     }
 }

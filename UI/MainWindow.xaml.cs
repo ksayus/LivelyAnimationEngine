@@ -1,406 +1,786 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using LAE;
 
 namespace UI;
 
+/// <summary>
+/// LAE 交互式演示台。
+/// <para>
+/// 左侧为按类别分组的演示目录, 中间为动画舞台, 右侧实时显示当前演示所使用的
+/// LAE 流式调用与运行日志。
+/// </para>
+/// </summary>
 public partial class MainWindow : Window
 {
-    private readonly SolidColorBrush _brushMain;
-    private readonly SolidColorBrush _brushColor;
-    private bool _moved;
+    /// <summary>一个可播放的演示项</summary>
+    private sealed record Demo(
+        string Name,
+        string Category,
+        string Description,
+        string Code,
+        Action Run);
+
+    private readonly List<Demo> _demos = new();
+    private readonly Dictionary<string, Button> _demoButtons = new();
+
+    // 舞台元素
+    private Rectangle _card = null!;
+    private Rectangle _swatch = null!;
+    private SolidColorBrush _cardBrush = null!;
+    private SolidColorBrush _swatchBrush = null!;
+    private Ellipse _opacityDot = null!;
+    private Border _sizeBox = null!;
+
+    // 变换
+    private readonly ScaleTransform _scale = new(1, 1);
+    private readonly SkewTransform _skew = new(0, 0);
+    private readonly RotateTransform _rotate = new(0);
+    private readonly TranslateTransform _translate = new(0, 0);
+
+    private Demo? _selected;
+    private Demo? _lastPlayed;
+
+    // FPS / 状态采样
+    private readonly Stopwatch _clock = Stopwatch.StartNew();
+    private long _lastFrames;
+    private double _lastSampleMs;
+    private DispatcherTimer _timer = null!;
+
+    private static readonly SolidColorBrush CardBase = new(Color.FromRgb(0x34, 0x98, 0xDB));
+    private static readonly SolidColorBrush SwatchBase = new(Color.FromRgb(0xE7, 0x4C, 0x3C));
 
     public MainWindow()
     {
         InitializeComponent();
-        _brushMain = (SolidColorBrush)rectMain.Fill;
-        _brushColor = (SolidColorBrush)rectColor.Fill;
 
-        // 定时刷新状态栏
-        var timer = new System.Windows.Threading.DispatcherTimer
+        BuildStage();
+        BuildDemos();
+        BuildDemoList();
+
+        CompositionTarget.Rendering += OnFrame;
+        _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        _timer.Tick += (_, _) => RefreshStatus();
+        _timer.Start();
+
+        Loaded += (_, _) =>
         {
-            Interval = TimeSpan.FromMilliseconds(200)
+            Log("LAE 演示台已就绪");
+            Log($"共 {_demos.Count} 个演示, 覆盖变换 / 属性 / 组合 / 缓动 / 引擎控制");
+            Log("点击左侧任意演示即可直接在舞台上看到效果");
+            Select(_demos[0]);
         };
-        timer.Tick += (_, _) => RefreshStatus();
-        timer.Start();
-
-        Log("LAE 引擎全功能测试界面已就绪");
-        Log("共 38 个测试按钮，覆盖所有引擎功能");
-    }
-
-    // ── 日志 ──
-    private void Log(string msg)
-    {
-        txtLog.Text += $"[{DateTime.Now:HH:mm:ss}] {msg}\n";
-        logScroll.ScrollToEnd();
-    }
-
-    private void RefreshStatus()
-    {
-        txtActiveGroups.Text = $"活跃组: {LAEngine.ActiveGroupCount}";
-        txtFrozen.Text = $"冻结: {(LAEngine.IsFrozen ? "是" : "否")}";
-        txtSpeedInfo.Text = $"速度: {LAEngine.Speed:F1}x";
-    }
-
-    private void SetStatus(string msg)
-    {
-        txtStatus.Text = msg;
-        Log(msg);
-    }
-
-    // ── 重置 ──
-    private void BtnResetAll_Click(object sender, RoutedEventArgs e)
-    {
-        LAEngine.StopAll();
-        translateTransform.X = 0;
-        translateTransform.Y = 0;
-        scaleTransform.ScaleX = 1;
-        scaleTransform.ScaleY = 1;
-        rotateTransform.Angle = 0;
-        skewTransform.AngleX = 0;
-        skewTransform.AngleY = 0;
-        _brushMain.Color = Color.FromRgb(0x34, 0x98, 0xDB);
-        _brushColor.Color = Color.FromRgb(0xE7, 0x4C, 0x3C);
-        ellipseOpacity.Opacity = 1.0;
-        borderSize.Width = 80;
-        borderSize.Height = 80;
-        rectFade.Opacity = 1.0;
-        _moved = false;
-        SetStatus("全部重置");
-    }
-
-    // ── 变换动画 ──
-
-    private void BtnMoveBy_Click(object sender, RoutedEventArgs e)
-    {
-        double dx = _moved ? -150 : 150;
-        _moved = !_moved;
-        LA.Builder().MoveBy(translateTransform, dx, 0, 600).Play();
-        SetStatus($"MoveBy: X +{dx}, Y +0");
-    }
-
-    private void BtnMoveTo_Click(object sender, RoutedEventArgs e)
-    {
-        LA.Builder().Move(translateTransform, 100, -50, 500).Play();
-        SetStatus("MoveTo: X=100, Y=-50");
-    }
-
-    private void BtnScale_Click(object sender, RoutedEventArgs e)
-    {
-        LA.Builder().Scale(scaleTransform, 2.0, 400).Play();
-        SetStatus("Scale: to 2.0x");
-    }
-
-    private void BtnScaleBy_Click(object sender, RoutedEventArgs e)
-    {
-        double ds = scaleTransform.ScaleX > 1.5 ? -0.5 : 0.5;
-        LA.Builder().ScaleBy(scaleTransform, ds, 400).Play();
-        SetStatus($"ScaleBy: {ds:+0.0;-0.0}");
-    }
-
-    private void BtnRotate_Click(object sender, RoutedEventArgs e)
-    {
-        LA.Builder().Rotate(rotateTransform, 180, 700).Play();
-        SetStatus("Rotate: to 180°");
-    }
-
-    private void BtnRotateBy_Click(object sender, RoutedEventArgs e)
-    {
-        LA.Builder().RotateBy(rotateTransform, 90, 500).Play();
-        SetStatus("RotateBy: +90°");
-    }
-
-    private void BtnSkew_Click(object sender, RoutedEventArgs e)
-    {
-        LA.Builder().Skew(skewTransform, 30, 500).Play();
-        SetStatus("Skew: to 30°");
-    }
-
-    private void BtnSkewBy_Click(object sender, RoutedEventArgs e)
-    {
-        double ds = skewTransform.AngleX > 15 ? -20 : 20;
-        LA.Builder().SkewBy(skewTransform, ds, 500).Play();
-        SetStatus($"SkewBy: {ds:+0;-0}°");
-    }
-
-    // ── 属性动画 ──
-
-    private void BtnColor_Click(object sender, RoutedEventArgs e)
-    {
-        var colors = new[] { Colors.Red, Colors.Green, Colors.Blue, Colors.Orange, Colors.Purple };
-        var next = colors[Random.Shared.Next(colors.Length)];
-        LA.Builder().Color(_brushMain, next, 500).Play();
-        SetStatus($"Color (brush): {next}");
-    }
-
-    private void BtnColorElement_Click(object sender, RoutedEventArgs e)
-    {
-        var colors = new[] { Colors.Yellow, Colors.Cyan, Colors.Magenta, Colors.White, Colors.Lime };
-        var next = colors[Random.Shared.Next(colors.Length)];
-        LA.Builder().Color(rectColor, Shape.FillProperty, next, 500).Play();
-        SetStatus($"Color (element): {next}");
-    }
-
-    private void BtnOpacity_Click(object sender, RoutedEventArgs e)
-    {
-        double target = ellipseOpacity.Opacity > 0.5 ? 0.2 : 1.0;
-        LA.Builder().Opacity(ellipseOpacity, target, 400).Play();
-        SetStatus($"Opacity: to {target:F1}");
-    }
-
-    private void BtnOpacityBy_Click(object sender, RoutedEventArgs e)
-    {
-        double delta = ellipseOpacity.Opacity > 0.5 ? -0.4 : 0.4;
-        LA.Builder().OpacityBy(ellipseOpacity, delta, 400).Play();
-        SetStatus($"OpacityBy: {delta:+0.0;-0.0}");
-    }
-
-    private void BtnWidth_Click(object sender, RoutedEventArgs e)
-    {
-        double target = borderSize.Width > 100 ? 80 : 150;
-        LA.Builder().Width(borderSize, target, 400).Play();
-        SetStatus($"Width: to {target}");
-    }
-
-    private void BtnWidthBy_Click(object sender, RoutedEventArgs e)
-    {
-        LA.Builder().WidthBy(borderSize, 50, 400).Play();
-        SetStatus("WidthBy: +50");
-    }
-
-    private void BtnHeight_Click(object sender, RoutedEventArgs e)
-    {
-        double target = borderSize.Height > 100 ? 80 : 150;
-        LA.Builder().Height(borderSize, target, 400).Play();
-        SetStatus($"Height: to {target}");
-    }
-
-    private void BtnHeightBy_Click(object sender, RoutedEventArgs e)
-    {
-        LA.Builder().HeightBy(borderSize, 50, 400).Play();
-        SetStatus("HeightBy: +50");
-    }
-
-    // ── 快捷方法 ──
-
-    private void BtnFadeIn_Click(object sender, RoutedEventArgs e)
-    {
-        rectFade.Opacity = 0.0;
-        LA.Builder().FadeIn(rectFade, 500).OnComplete(() => SetStatus("FadeIn 完成")).Play();
-        SetStatus("FadeIn: 0 -> 1");
-    }
-
-    private void BtnFadeOut_Click(object sender, RoutedEventArgs e)
-    {
-        rectFade.Opacity = 1.0;
-        LA.Builder().FadeOut(rectFade, 500).OnComplete(() => SetStatus("FadeOut 完成")).Play();
-        SetStatus("FadeOut: 1 -> 0");
-    }
-
-    // ── 组合控制 ──
-
-    private void BtnSeq_Click(object sender, RoutedEventArgs e)
-    {
-        LA.Builder("seq_test")
-            .Scale(scaleTransform, 1.5, 300)
-            .Then()
-            .MoveBy(translateTransform, 80, 0, 500)
-            .Then()
-            .RotateBy(rotateTransform, 180, 500)
-            .Then()
-            .Color(_brushMain, Colors.Orange, 400)
-            .OnComplete(() => SetStatus("序列动画完成"))
-            .Play();
-        SetStatus("Sequence: 缩放→移动→旋转→变色");
-    }
-
-    private void BtnPar_Click(object sender, RoutedEventArgs e)
-    {
-        LA.Builder("par_test")
-            .Scale(scaleTransform, 1.3, 600)
-            .MoveBy(translateTransform, 60, 30, 600)
-            .RotateBy(rotateTransform, 60, 600)
-            .Color(_brushMain, Colors.Green, 600)
-            .OnComplete(() => SetStatus("并行动画完成"))
-            .Play();
-        SetStatus("Parallel: 同时 缩放+移动+旋转+变色");
-    }
-
-    private void BtnDelay_Click(object sender, RoutedEventArgs e)
-    {
-        LA.Builder("delay_test")
-            .Delay(800)
-            .MoveBy(translateTransform, 120, 0, 500)
-            .OnComplete(() => SetStatus("延迟动画完成"))
-            .Play();
-        SetStatus("Delay: 800ms 延迟后移动");
-    }
-
-    private void BtnWait_Click(object sender, RoutedEventArgs e)
-    {
-        LA.Builder("wait_test")
-            .Wait(1000)
-            .OnComplete(() => SetStatus("Wait 1s 完成"))
-            .Play();
-        SetStatus("Wait: 等待 1 秒");
-    }
-
-    private void BtnCallback_Click(object sender, RoutedEventArgs e)
-    {
-        bool callbackFired = false;
-        LA.Builder("callback_test")
-            .Callback(() =>
-            {
-                callbackFired = true;
-                SetStatus("Callback 已触发!");
-            })
-            .Then()
-            .RotateBy(rotateTransform, 45, 300)
-            .OnComplete(() =>
-            {
-                if (callbackFired)
-                    SetStatus("Callback + Rotate 序列完成 ✓");
-            })
-            .Play();
-        SetStatus("Callback: 先回调, 再旋转");
-    }
-
-    private void BtnOnComplete_Click(object sender, RoutedEventArgs e)
-    {
-        int count = 0;
-        LA.Builder("complete_test")
-            .ScaleBy(scaleTransform, 0.3, 400)
-            .OnComplete(() =>
-            {
-                count++;
-                SetStatus($"OnComplete 触发 (第{count}次)");
-            })
-            .Play();
-        SetStatus("OnComplete: 缩放后回调");
-    }
-
-    // ── 引擎控制 ──
-
-    private void BtnStopNamed_Click(object sender, RoutedEventArgs e)
-    {
-        // 先启动一个命名动画
-        LA.Builder("stoppable")
-            .RotateBy(rotateTransform, 360, 3000)
-            .OnComplete(() => SetStatus("stoppable 正常完成"))
-            .Play();
-        SetStatus("启动命名动画 'stoppable' (3s)");
-
-        // 1.5秒后停止
-        _ = Task.Delay(1500).ContinueWith(_ =>
+        Closed += (_, _) =>
         {
-            Dispatcher.Invoke(() =>
+            CompositionTarget.Rendering -= OnFrame;
+            _timer.Stop();
+            LAEngine.StopAll();
+        };
+    }
+
+    // ──────────────────────────────────────────────
+    //  舞台
+    // ──────────────────────────────────────────────
+
+    private void BuildStage()
+    {
+        var transformGroup = new TransformGroup();
+        transformGroup.Children.Add(_scale);
+        transformGroup.Children.Add(_skew);
+        transformGroup.Children.Add(_rotate);
+        transformGroup.Children.Add(_translate);
+
+        _cardBrush = CardBase.Clone();
+        _card = new Rectangle
+        {
+            Width = 104,
+            Height = 104,
+            RadiusX = 16,
+            RadiusY = 16,
+            Fill = _cardBrush,
+            RenderTransformOrigin = new Point(0.5, 0.5),
+            RenderTransform = transformGroup,
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
             {
-                LAEngine.Stop("stoppable");
-                SetStatus("Stop: 'stoppable' 已停止");
+                Color = Color.FromRgb(0x34, 0x98, 0xDB),
+                BlurRadius = 26,
+                ShadowDepth = 0,
+                Opacity = 0.55
+            }
+        };
+
+        _swatchBrush = SwatchBase.Clone();
+        _swatch = new Rectangle
+        {
+            Width = 76,
+            Height = 76,
+            RadiusX = 12,
+            RadiusY = 12,
+            Fill = _swatchBrush,
+            RenderTransformOrigin = new Point(0.5, 0.5)
+        };
+
+        _opacityDot = new Ellipse
+        {
+            Width = 86,
+            Height = 86,
+            Fill = new SolidColorBrush(Color.FromRgb(0x2E, 0xCC, 0x71)),
+            RenderTransformOrigin = new Point(0.5, 0.5)
+        };
+
+        _sizeBox = new Border
+        {
+            Width = 96,
+            Height = 96,
+            CornerRadius = new CornerRadius(12),
+            Background = new SolidColorBrush(Color.FromRgb(0x9B, 0x59, 0xB6))
+        };
+
+        // 舞台使用绝对定位, 元素在窗口尺寸变化时重新排布
+        stage.Children.Add(_card);
+        stage.Children.Add(_swatch);
+        stage.Children.Add(_opacityDot);
+        stage.Children.Add(_sizeBox);
+
+        AddCaption("主卡片", _card);
+        AddCaption("颜色块", _swatch);
+        AddCaption("不透明度", _opacityDot);
+        AddCaption("尺寸盒", _sizeBox);
+
+        stage.SizeChanged += (_, _) => LayoutStage();
+        LayoutStage();
+    }
+
+    private void AddCaption(string text, FrameworkElement target)
+    {
+        var label = new TextBlock
+        {
+            Text = text,
+            FontSize = 10,
+            Foreground = new SolidColorBrush(Color.FromRgb(0x5D, 0x68, 0x78)),
+            Tag = target
+        };
+        stage.Children.Add(label);
+    }
+
+    /// <summary>
+    /// 依据舞台尺寸摆放四个演示目标与标题, 保证不被裁切。
+    /// </summary>
+    private void LayoutStage()
+    {
+        double w = stage.ActualWidth;
+        double h = stage.ActualHeight;
+        if (w < 200 || h < 200) return;
+
+        double cx = w * 0.5;
+        double cy = h * 0.46;
+
+        Place(_card, cx - _card.Width / 2, cy - _card.Height / 2);
+        Place(_opacityDot, cx - _opacityDot.Width / 2, cy + 104);
+        Place(_sizeBox, cx - 210 - _sizeBox.Width / 2, cy - _sizeBox.Height / 2);
+        Place(_swatch, cx + 210 - _swatch.Width / 2, cy - _swatch.Height / 2);
+
+        foreach (var label in stage.Children.OfType<TextBlock>())
+        {
+            if (label.Tag is not FrameworkElement target) continue;
+            Canvas.SetLeft(label, Canvas.GetLeft(target));
+            Canvas.SetTop(label, Canvas.GetTop(target) - 17);
+        }
+    }
+
+    private static void Place(UIElement element, double left, double top)
+    {
+        Canvas.SetLeft(element, left);
+        Canvas.SetTop(element, top);
+    }
+
+    // ──────────────────────────────────────────────
+    //  演示目录
+    // ──────────────────────────────────────────────
+
+    private void BuildDemos()
+    {
+        void Add(string category, string name, string description, string code, Action run)
+            => _demos.Add(new Demo(name, category, description, code, run));
+
+        // ── 变换动画 ──
+        Add("变换动画", "相对位移 MoveBy", "TranslateTransform 相对移动",
+            """
+            LA.Builder("move_by")
+                .During(600)
+                .Ease(Easing.OutCubic)
+                .MoveBy(_translate, 180, 0)
+                .Play();
+            """,
+            () => LA.Builder("move_by").During(600)
+                    .MoveBy(_translate, 180, 0).OnComplete(RefreshStatus).Play());
+
+        Add("变换动画", "绝对位移 Move", "TranslateTransform 移动到绝对坐标",
+            """
+            LA.Builder("move_to")
+                .Move(_translate, 120, -60, 600)
+                .Play();
+            """,
+            () => LA.Builder("move_to").Move(_translate, 120, -60, 600)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("变换动画", "绝对缩放 Scale", "ScaleX / ScaleY 同步缩放到 1.8x",
+            """
+            LA.Builder("scale")
+                .Scale(_scale, 1.8, 450)
+                .Play();
+            """,
+            () => LA.Builder("scale").Scale(_scale, 1.8, 450)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("变换动画", "相对缩放 ScaleBy", "在当前基础上缩放一个增量",
+            """
+            LA.Builder("scale_by")
+                .ScaleBy(_scale, 0.45, 400)
+                .Play();
+            """,
+            () => LA.Builder("scale_by").ScaleBy(_scale, 0.45, 400)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("变换动画", "绝对旋转 Rotate", "旋转到 180°",
+            """
+            LA.Builder("rotate")
+                .Rotate(_rotate, 180, 800)
+                .Play();
+            """,
+            () => LA.Builder("rotate").Rotate(_rotate, 180, 800)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("变换动画", "相对旋转 RotateBy", "每次旋转 +90°",
+            """
+            LA.Builder("rotate_by")
+                .RotateBy(_rotate, 90, 500)
+                .Play();
+            """,
+            () => LA.Builder("rotate_by").RotateBy(_rotate, 90, 500)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("变换动画", "绝对偏斜 Skew", "AngleX / AngleY 同步偏斜到 25°",
+            """
+            LA.Builder("skew")
+                .Skew(_skew, 25, 500)
+                .Play();
+            """,
+            () => LA.Builder("skew").Skew(_skew, 25, 500)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("变换动画", "相对偏斜 SkewBy", "偏斜一个相对角度",
+            """
+            LA.Builder("skew_by")
+                .SkewBy(_skew, 12, 450)
+                .Play();
+            """,
+            () => LA.Builder("skew_by").SkewBy(_skew, 12, 450)
+                    .OnComplete(RefreshStatus).Play());
+
+        // ── 属性动画 ──
+        Add("属性动画", "颜色 · 元素属性", "对 Shape.FillProperty 做颜色动画",
+            """
+            LA.Builder("color_element")
+                .Color(_swatch, Shape.FillProperty, Colors.MediumPurple, 600)
+                .Play();
+            """,
+            () => LA.Builder("color_element")
+                    .Color(_swatch, Shape.FillProperty, Colors.MediumPurple, 600)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("属性动画", "颜色 · 画刷实例", "直接动画画刷实例的颜色",
+            """
+            LA.Builder("color_brush")
+                .Color(_cardBrush, Colors.MediumSeaGreen, 600)
+                .Play();
+            """,
+            () => LA.Builder("color_brush")
+                    .Color(_cardBrush, Colors.MediumSeaGreen, 600)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("属性动画", "不透明度 Opacity", "淡到 0.15",
+            """
+            LA.Builder("opacity")
+                .Opacity(_opacityDot, 0.15, 450)
+                .Play();
+            """,
+            () => LA.Builder("opacity").Opacity(_opacityDot, 0.15, 450)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("属性动画", "不透明度增量 OpacityBy", "在当前基础上增减",
+            """
+            LA.Builder("opacity_by")
+                .OpacityBy(_opacityDot, -0.5, 450)
+                .Play();
+            """,
+            () => LA.Builder("opacity_by").OpacityBy(_opacityDot, -0.5, 450)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("属性动画", "宽度 Width", "FrameworkElement.Width 动画",
+            """
+            LA.Builder("width")
+                .Width(_sizeBox, 180, 450)
+                .Play();
+            """,
+            () => LA.Builder("width").Width(_sizeBox, 180, 450)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("属性动画", "高度 Height", "FrameworkElement.Height 动画",
+            """
+            LA.Builder("height")
+                .Height(_sizeBox, 168, 450)
+                .Play();
+            """,
+            () => LA.Builder("height").Height(_sizeBox, 168, 450)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("属性动画", "淡入淡出 Fade", "先淡出再淡入, 1 → 0 → 1",
+            """
+            LA.Builder("fade")
+                .FadeOut(_opacityDot, 400)
+                .Then()
+                .FadeIn(_opacityDot, 400)
+                .Play();
+            """,
+            () => LA.Builder("fade")
+                    .FadeOut(_opacityDot, 400)
+                    .Then()
+                    .FadeIn(_opacityDot, 400)
+                    .OnComplete(RefreshStatus).Play());
+
+        // ── 组合控制 ──
+        Add("组合控制", "序列 Then", "缩放 → 位移 → 旋转 → 变色, 依次执行",
+            """
+            LA.Builder("sequence")
+                .Scale(_scale, 1.45, 320)
+                .Then().MoveBy(_translate, 90, -40, 460)
+                .Then().RotateBy(_rotate, 180, 520)
+                .Then().Color(_cardBrush, Colors.Orange, 420)
+                .OnComplete(...)
+                .Play();
+            """,
+            () => LA.Builder("sequence")
+                    .Scale(_scale, 1.45, 320)
+                    .Then().MoveBy(_translate, 90, -40, 460)
+                    .Then().RotateBy(_rotate, 180, 520)
+                    .Then().Color(_cardBrush, Colors.Orange, 420)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("组合控制", "并行 (默认)", "不调用 Then 时全部动作同时开始",
+            """
+            LA.Builder("parallel")
+                .Scale(_scale, 1.3, 700)
+                .MoveBy(_translate, 70, 40, 700)
+                .RotateBy(_rotate, 75, 700)
+                .Color(_cardBrush, Colors.MediumSeaGreen, 700)
+                .Play();
+            """,
+            () => LA.Builder("parallel")
+                    .Scale(_scale, 1.3, 700)
+                    .MoveBy(_translate, 70, 40, 700)
+                    .RotateBy(_rotate, 75, 700)
+                    .Color(_cardBrush, Colors.MediumSeaGreen, 700)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("组合控制", "延迟 Delay", "为下一个动作追加一次性延迟",
+            """
+            LA.Builder("delay")
+                .Delay(700)
+                .MoveBy(_translate, 150, 0, 500)
+                .Play();
+            """,
+            () => LA.Builder("delay")
+                    .Delay(700)
+                    .MoveBy(_translate, 150, 0, 500)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("组合控制", "等待 Wait", "静默停顿 800ms 后再缩放",
+            """
+            LA.Builder("wait")
+                .Wait(800)
+                .Then().Scale(_scale, 1.6, 500)
+                .Play();
+            """,
+            () => LA.Builder("wait")
+                    .Wait(800)
+                    .Then().Scale(_scale, 1.6, 500)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("组合控制", "回调 Callback", "序列中插入代码回调",
+            """
+            LA.Builder("callback")
+                .Callback(() => SetStatus("回调已触发"))
+                .Then().RotateBy(_rotate, 45, 400)
+                .Play();
+            """,
+            () => LA.Builder("callback")
+                    .Callback(() => SetStatus("Callback 已触发"))
+                    .Then().RotateBy(_rotate, 45, 400)
+                    .OnComplete(RefreshStatus).Play());
+
+        Add("组合控制", "完成回调 OnComplete", "整组动画结束后触发",
+            """
+            LA.Builder("complete")
+                .ScaleBy(_scale, 0.3, 600)
+                .OnComplete(() => SetStatus("OnComplete 触发"))
+                .Play();
+            """,
+            () => LA.Builder("complete")
+                    .ScaleBy(_scale, 0.3, 600)
+                    .OnComplete(() => SetStatus("OnComplete 已触发"))
+                    .Play());
+
+        Add("组合控制", "期间/缓动默认值", "During 与 Ease 设置后续动作默认值",
+            """
+            LA.Builder("defaults")
+                .During(900)
+                .Ease(Easing.InOutCubic)
+                .MoveBy(_translate, 160, 0)
+                .Then()
+                .MoveBy(_translate, -160, 0)
+                .Play();
+            """,
+            () => LA.Builder("defaults")
+                    .During(900)
+                    .Ease(Easing.InOutCubic)
+                    .MoveBy(_translate, 160, 0)
+                    .Then()
+                    .MoveBy(_translate, -160, 0)
+                    .OnComplete(RefreshStatus).Play());
+
+        // ── 缓动函数 ──
+        Add("缓动函数", "Linear 线性", "匀速, 无加减速",
+            CodeEasing("Easing.Linear"),
+            () => RunEasing("easing_linear", Easing.Linear));
+
+        Add("缓动函数", "OutCubic 缓出", "引擎默认缓动",
+            CodeEasing("Easing.OutCubic"),
+            () => RunEasing("easing_outcubic", Easing.OutCubic));
+
+        Add("缓动函数", "InOutCubic 缓入缓出", "两端慢, 中间快",
+            CodeEasing("Easing.InOutCubic"),
+            () => RunEasing("easing_inoutcubic", Easing.InOutCubic));
+
+        Add("缓动函数", "OutPow(5) 强缓出", "指数更大的缓出",
+            CodeEasing("Easing.OutPow(5)"),
+            () => RunEasing("easing_outpow5", Easing.OutPow(5)));
+
+        Add("缓动函数", "InOutPow(5) 强缓入缓出", "指数更大的缓入缓出",
+            CodeEasing("Easing.InOutPow(5)"),
+            () => RunEasing("easing_inoutpow5", Easing.InOutPow(5)));
+
+        // ── 引擎控制 ──
+        Add("引擎控制", "冻结 Freeze", "冻结后动画停止推进, 解冻后继续",
+            """
+            LAEngine.Freeze();     // 暂停推进
+            // ... 批量设置属性 ...
+            LAEngine.Unfreeze();   // 恢复
+            """,
+            () =>
+            {
+                if (LAEngine.IsFrozen) { LAEngine.Unfreeze(); SetStatus("已解冻"); }
+                else { LAEngine.Freeze(); SetStatus("已冻结 (动画暂停推进)"); }
             });
-        });
+
+        Add("引擎控制", "停止 Stop", "启动 4 秒旋转, 1 秒后按名称停止",
+            """
+            LA.Builder("stoppable")
+                .RotateBy(_rotate, 360, 4000)
+                .Play();
+
+            LAEngine.Stop("stoppable");   // 按时长取消
+            """,
+            () =>
+            {
+                LA.Builder("stoppable").RotateBy(_rotate, 360, 4000).Play();
+                _ = Task.Delay(1000).ContinueWith(_ => Dispatcher.Invoke(() =>
+                {
+                    LAEngine.Stop("stoppable");
+                    SetStatus("已停止命名动画 'stoppable'");
+                }));
+            });
+
+        Add("引擎控制", "停止全部 StopAll", "清空所有活跃动画组",
+            "LAEngine.StopAll();",
+            () => BtnStopAll(SetStatus));
+
+        Add("引擎控制", "重置舞台", "复位所有变换与颜色",
+            "// 复位变换、画刷与尺寸",
+            () => { ResetStage(); SetStatus("舞台已重置"); });
+
+        // ── 压力与颜色 ──
+        Add("压力测试", "颜色循环", "连续变色, 演示增量动画叠加",
+            """
+            for (int i = 0; i < 6; i++)
+                LA.Builder($"cycle_{i}")
+                    .Delay(i * 120)
+                    .Color(_cardBrush, palette[i], 500)
+                    .Play();
+            """,
+            RunColorCycle);
+
+        Add("压力测试", "240 组并发", "压测帧驱动与分组调度性能",
+            """
+            for (int i = 0; i < 240; i++)
+                LA.Builder($"stress_{i}")
+                    .Delay(i * 4)
+                    .ScaleBy(_scale, 0.004, 1400)
+                    .RotateBy(_rotate, 1.2, 1400)
+                    .Play();
+            """,
+            RunStress);
     }
 
-    private void BtnIsRunning_Click(object sender, RoutedEventArgs e)
-    {
-        bool running = LAEngine.IsRunning("stoppable");
-        SetStatus($"IsRunning('stoppable'): {running}");
-
-        // 也检查一个不存在的
-        bool notRunning = LAEngine.IsRunning("nonexistent");
-        Log($"IsRunning('nonexistent'): {notRunning}");
-    }
-
-    private void BtnActiveCount_Click(object sender, RoutedEventArgs e)
-    {
-        SetStatus($"ActiveGroupCount: {LAEngine.ActiveGroupCount}");
-    }
-
-    private void BtnIsFrozen_Click(object sender, RoutedEventArgs e)
-    {
-        SetStatus($"IsFrozen: {LAEngine.IsFrozen}");
-    }
-
-    // ── 缓动函数 ──
-
-    private void BtnEasingLinear_Click(object sender, RoutedEventArgs e)
-    {
-        LA.Builder("easing_test")
-            .Ease(Easing.Linear)
-            .MoveBy(translateTransform, 100, 0, 800)
-            .OnComplete(() => SetStatus("Linear 完成"))
+    private static string CodeEasing(string easing) =>
+        $$"""
+        LA.Builder("easing")
+            .During(900)
+            .Ease({{easing}})
+            .MoveBy(_translate, 170, 0)
+            .Then()
+            .MoveBy(_translate, -170, 0)
             .Play();
-        SetStatus("Easing: Linear (线性)");
-    }
+        """;
 
-    private void BtnEasingOutCubic_Click(object sender, RoutedEventArgs e)
+    private void RunEasing(string name, Func<double, double> easing)
     {
-        LA.Builder("easing_test")
-            .Ease(Easing.OutCubic)
-            .MoveBy(translateTransform, 100, 0, 800)
-            .OnComplete(() => SetStatus("OutCubic 完成"))
+        LA.Builder(name)
+            .During(900)
+            .Ease(easing)
+            .MoveBy(_translate, 170, 0)
+            .Then()
+            .MoveBy(_translate, -170, 0)
+            .OnComplete(RefreshStatus)
             .Play();
-        SetStatus("Easing: OutCubic (缓出)");
     }
 
-    private void BtnEasingInOutCubic_Click(object sender, RoutedEventArgs e)
+    private void RunColorCycle()
     {
-        LA.Builder("easing_test")
-            .Ease(Easing.InOutCubic)
-            .MoveBy(translateTransform, 100, 0, 800)
-            .OnComplete(() => SetStatus("InOutCubic 完成"))
-            .Play();
-        SetStatus("Easing: InOutCubic (缓入缓出)");
+        var palette = new[]
+        {
+            Colors.Orange, Colors.MediumSeaGreen, Colors.MediumPurple,
+            Colors.Crimson, Colors.Gold, Colors.DeepSkyBlue
+        };
+
+        for (int i = 0; i < palette.Length; i++)
+        {
+            int index = i;
+            LA.Builder($"cycle_{index}")
+                .Delay(index * 130)
+                .Color(_cardBrush, palette[index], 520)
+                .Play();
+        }
     }
 
-    private void BtnEasingOutPow5_Click(object sender, RoutedEventArgs e)
+    private void RunStress()
     {
-        LA.Builder("easing_test")
-            .Ease(Easing.OutPow(5))
-            .MoveBy(translateTransform, 100, 0, 800)
-            .OnComplete(() => SetStatus("OutPow(5) 完成"))
-            .Play();
-        SetStatus("Easing: OutPow(5) (强缓出)");
+        // 240 组动画同时推进: 验证帧驱动吞吐与分组调度, 同时确认 FPS 仍能稳定在刷新率附近。
+        // 各组的增量与时长完全一致, 因此对共享变换的写入会稳定收敛而不是互相抖动。
+        for (int i = 0; i < 240; i++)
+        {
+            LA.Builder($"stress_{i}")
+                .Delay(i * 4)
+                .ScaleBy(_scale, 0.0015, 1400)
+                .RotateBy(_rotate, 0.45, 1400)
+                .Play();
+        }
+        SetStatus("已启动 240 组并发动画");
     }
 
-    private void BtnEasingInOutPow5_Click(object sender, RoutedEventArgs e)
+    private void BuildDemoList()
     {
-        LA.Builder("easing_test")
-            .Ease(Easing.InOutPow(5))
-            .MoveBy(translateTransform, 100, 0, 800)
-            .OnComplete(() => SetStatus("InOutPow(5) 完成"))
-            .Play();
-        SetStatus("Easing: InOutPow(5) (强缓入缓出)");
+        string? currentCategory = null;
+
+        foreach (var demo in _demos)
+        {
+            if (demo.Category != currentCategory)
+            {
+                currentCategory = demo.Category;
+                demoList.Children.Add(new TextBlock
+                {
+                    Text = currentCategory,
+                    FontSize = 10,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x5D, 0x68, 0x78)),
+                    Margin = new Thickness(6, 14, 0, 6)
+                });
+            }
+
+            var button = new Button
+            {
+                Content = demo.Name,
+                Style = (Style)FindResource("DemoButton"),
+                Tag = demo
+            };
+            button.Click += (_, _) => Select(demo);
+            _demoButtons[demo.Name] = button;
+            demoList.Children.Add(button);
+        }
     }
 
-    // ── 冻结/解冻/停止/速度 ──
-
-    private void BtnFreeze_Click(object sender, RoutedEventArgs e)
+    private void Select(Demo demo, bool autoPlay = true)
     {
-        LAEngine.Freeze();
-        SetStatus($"冻结: _freezeCounter={LAEngine.IsFrozen}");
+        _selected = demo;
+
+        foreach (var (name, button) in _demoButtons)
+        {
+            bool active = name == demo.Name;
+            button.Background = active
+                ? new SolidColorBrush(Color.FromRgb(0x1E, 0x3A, 0x4C))
+                : new SolidColorBrush(Color.FromRgb(0x1C, 0x23, 0x31));
+            button.BorderBrush = active
+                ? (Brush)FindResource("Accent")
+                : new SolidColorBrush(Color.FromRgb(0x27, 0x30, 0x41));
+            button.FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal;
+        }
+
+        txtSelectedName.Text = demo.Name;
+        txtSelectedDesc.Text = demo.Description;
+        txtCode.Text = demo.Code;
+        txtCodeHint.Text = demo.Category;
+        txtStageTitle.Text = demo.Name;
+        txtStageHint.Text = demo.Description;
+
+        // 演示台的核心体验是"点一下就能看到", 因此选中即播放
+        if (autoPlay)
+        {
+            ResetStage();
+            Play(demo);
+        }
     }
 
-    private void BtnUnfreeze_Click(object sender, RoutedEventArgs e)
+    private void Play(Demo demo)
     {
-        LAEngine.Unfreeze();
-        SetStatus($"解冻: _freezeCounter={LAEngine.IsFrozen}");
+        _lastPlayed = demo;
+        demo.Run();
+        RefreshStatus();
     }
 
-    private void BtnStopAll_Click(object sender, RoutedEventArgs e)
+    private void BtnPlaySelected_Click(object sender, RoutedEventArgs e)
+    {
+        if (_selected == null) return;
+        ResetStage();
+        Play(_selected);
+    }
+
+    private void BtnReplay_Click(object sender, RoutedEventArgs e)
+    {
+        var target = _selected ?? _lastPlayed;
+        if (target == null) return;
+        ResetStage();
+        Play(target);
+    }
+
+    // ──────────────────────────────────────────────
+    //  引擎控制
+    // ──────────────────────────────────────────────
+
+    private void BtnStopAll_Click(object sender, RoutedEventArgs e) => BtnStopAll(SetStatus);
+
+    private static void BtnStopAll(Action<string> report)
     {
         LAEngine.StopAll();
-        SetStatus("StopAll: 所有动画已停止");
+        report("已停止全部动画");
+    }
+
+    private void BtnReset_Click(object sender, RoutedEventArgs e)
+    {
+        ResetStage();
+        SetStatus("舞台已重置");
+    }
+
+    private void ResetStage()
+    {
+        LAEngine.StopAll();
+
+        _translate.X = 0;
+        _translate.Y = 0;
+        _scale.ScaleX = 1;
+        _scale.ScaleY = 1;
+        _rotate.Angle = 0;
+        _skew.AngleX = 0;
+        _skew.AngleY = 0;
+
+        ResetBrush(_cardBrush, CardBase.Color);
+        ResetBrush(_swatchBrush, SwatchBase.Color);
+
+        _opacityDot.Opacity = 1.0;
+        _sizeBox.Width = 96;
+        _sizeBox.Height = 96;
+
+        RefreshStatus();
+    }
+
+    private static void ResetBrush(SolidColorBrush brush, Color color)
+    {
+        // 动画可能已经把画刷替换成克隆体, 这里只复位不替换引用
+        if (!brush.IsFrozen) brush.Color = color;
     }
 
     private void SliderSpeed_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        // XAML 加载期间 Slider 的 Minimum/Maximum/Value 设置会触发此事件,
-        // 此时 sliderSpeed 和 txtSpeed 尚未被 XAML 加载器赋值, 需判空
+        // XAML 加载期间会先于字段赋值触发, 需要判空
         if (sliderSpeed == null || txtSpeed == null) return;
         LAEngine.Speed = sliderSpeed.Value;
-        txtSpeed.Text = $"{sliderSpeed.Value:F1}x";
+        txtSpeed.Text = $"{sliderSpeed.Value:0.0}x";
     }
+
+    // ──────────────────────────────────────────────
+    //  状态与日志
+    // ──────────────────────────────────────────────
+
+    private void OnFrame(object? sender, EventArgs e)
+    {
+        Interlocked.Increment(ref _lastFrames);
+    }
+
+    private void RefreshStatus()
+    {
+        double now = _clock.Elapsed.TotalMilliseconds;
+        double elapsed = now - _lastSampleMs;
+        if (elapsed >= 500)
+        {
+            long frames = Interlocked.Read(ref _lastFrames);
+            double fps = frames * 1000.0 / elapsed;
+            txtFps.Text = $"{fps:0} fps";
+            _lastSampleMs = now;
+            Interlocked.Exchange(ref _lastFrames, 0);
+        }
+
+        txtGroups.Text = LAEngine.ActiveGroupCount.ToString();
+        txtHooked.Text = LAEngine.IsHooked ? "active" : "idle";
+        txtHooked.Foreground = LAEngine.IsHooked
+            ? (Brush)FindResource("Success")
+            : (Brush)FindResource("TextSecondary");
+
+        freezeBadge.Visibility = LAEngine.IsFrozen ? Visibility.Visible : Visibility.Collapsed;
+
+        var error = LAEngine.LastError;
+        txtStats.Text =
+            $"组 {LAEngine.ActiveGroupCount}   ·   速度 {LAEngine.Speed:0.0}x   ·   " +
+            $"冻结 {(LAEngine.IsFrozen ? "是" : "否")}   ·   " +
+            (error == null ? "无异常" : $"异常 {error.GetType().Name}");
+    }
+
+    private void SetStatus(string message)
+    {
+        txtStatus.Text = message;
+        statusDot.Fill = (Brush)FindResource("Accent");
+        Log(message);
+    }
+
+    private void Log(string message)
+    {
+        txtLog.Text += $"{DateTime.Now:HH:mm:ss.fff}  {message}\n";
+        if (txtLog.Text.Length > 12000)
+            txtLog.Text = txtLog.Text[^8000..];
+        logScroll.ScrollToEnd();
+    }
+
+    private void BtnClearLog_Click(object sender, RoutedEventArgs e) => txtLog.Text = string.Empty;
 }

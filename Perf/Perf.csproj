@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>LAE.Perf</RootNamespace>
+    <AssemblyName>LAE.Perf</AssemblyName>
+    <!-- 让被引用的类库保持纯 DLL 输出，避免两个入口点冲突 -->
+    <DebugAsExecutable>false</DebugAsExecutable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LAE\LivelyAnimationEngine.csproj" />
+  </ItemGroup>
+
+</Project>

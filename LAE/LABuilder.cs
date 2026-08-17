@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using System.Windows.Media;
 
 namespace LAE;
@@ -19,8 +19,8 @@ public static class LA
 }
 
 /// <summary>
-/// 流式动画构建器,累计动画动作,支持并行(默认)与序列(Then)两种组合方式
-/// 默认动作并执行,调用Then()后,后续动作等待前序全部完成再开始
+/// 流式动画构建器, 累计动画动作, 支持并行(默认)与序列(Then)两种组合方式。
+/// 默认动作并行执行, 调用 Then() 后, 后续动作等待前序全部完成再开始。
 /// </summary>
 public sealed class LABuilder
 {
@@ -30,6 +30,7 @@ public sealed class LABuilder
     private Func<double, double> _defaultEasing = Easing.OutCubic;
     private double _pendingDelay;       // 仅用于下一个动作(一次性)
     private bool _sequenceBarrier;      // 下一个动作是否等待前序
+    private int _step = -1;             // 当前步骤号, 每个动作/组合动作占一步
 
     internal LABuilder(string? name)
     {
@@ -41,14 +42,22 @@ public sealed class LABuilder
 
     // 默认值设置(影响后续所有动作,直到再次修改)
 
-    // 设置后续动作的默认时长
+    /// <summary>
+    /// 设置后续动作的默认时长(毫秒)
+    /// </summary>
+    /// <param name="milliseconds"></param>
+    /// <returns></returns>
     public LABuilder During(double milliseconds)
     {
         _defaultDuration = milliseconds;
         return this;
     }
 
-    // 设置后续动作的默认缓动函数 默认 OutCubic
+    /// <summary>
+    /// 设置后续动作的默认缓动函数, 默认 <see cref="Easing.OutCubic"/>
+    /// </summary>
+    /// <param name="easing"></param>
+    /// <returns></returns>
     public LABuilder Ease(Func<double, double> easing)
     {
         _defaultEasing = easing ?? Easing.Linear;
@@ -68,8 +77,9 @@ public sealed class LABuilder
         _sequenceBarrier = true;
         return this;
     }
+
     /// <summary>
-    /// 为下一个动作追加延迟(毫秒,一次性,用后即止)
+    /// 为下一个动作追加延迟(毫秒, 一次性, 用后即止)
     /// </summary>
     /// <param name="milliseconds"></param>
     /// <returns></returns>
@@ -78,16 +88,20 @@ public sealed class LABuilder
         _pendingDelay += milliseconds;
         return this;
     }
+
     /// <summary>
-    /// 在序列中插入一段静止停顿   Wait 始终作为序列分隔点:
-    /// 先等待前序全部完成,再静默消耗指定时长,之后后续动作才开始
+    /// 在序列中插入一段静止停顿。Wait 始终作为序列分隔点:
+    /// 先等待前序全部完成, 再静默消耗指定时长, 之后后续动作才开始
     /// </summary>
     /// <param name="milliseconds"></param>
     /// <returns></returns>
     public LABuilder Wait(double milliseconds)
     {
-        // 始终等待前序,无论是否调用Then()
-        Add(new WaitLA(milliseconds, true));
+        // 始终等待前序, 无论是否调用过 Then(); 其自身亦为分隔点
+        bool barrier = _sequenceBarrier;
+        _sequenceBarrier = false;
+        _step++;
+        _group.AddAction(new WaitLA(milliseconds, true), barrier, _step);
         _sequenceBarrier = true;
         return this;
     }
@@ -108,11 +122,12 @@ public sealed class LABuilder
         DependencyObject target, DependencyProperty property,double endValue,
         double? duration = null, Func<double, double>? easing = null)
     {
-        Add(new DependencyPropertyLA(target, property, endValue, false,
+        AddStep(new DependencyPropertyLA(target, property, endValue, false,
             duration ?? _defaultDuration, ConsumeDelay(),
-            easing ?? _defaultEasing, ConsumeBarrier()));
+            easing ?? _defaultEasing, false));
         return this;
     }
+
     /// <summary>
     /// 将依赖属性动画一个相对增量
     /// </summary>
@@ -126,9 +141,9 @@ public sealed class LABuilder
         DependencyObject target, DependencyProperty property, double deltaValue,
         double? duration = null, Func<double, double>? easing = null)
     {
-        Add(new DependencyPropertyLA(target, property, deltaValue, true,
+        AddStep(new DependencyPropertyLA(target, property, deltaValue, true,
             duration ?? _defaultDuration, ConsumeDelay(),
-            easing ?? _defaultEasing, ConsumeBarrier()));
+            easing ?? _defaultEasing, false));
         return this;
     }
 
@@ -147,9 +162,16 @@ public sealed class LABuilder
         ScaleTransform transform, double endScale,
         double? duration = null, Func<double, double>? easing = null)
     {
-        Add(new ScaleTransformLA(transform, endScale, false,
-            duration ?? _defaultDuration, ConsumeDelay(),
-            easing ?? _defaultEasing, ConsumeBarrier()));
+        double dur = duration ?? _defaultDuration;
+        Func<double, double> ez = easing ?? _defaultEasing;
+        double delay = ConsumeDelay();
+
+        // ScaleX / ScaleY 独立动画且同属一步: 一起等待前序, 一起开始
+        AddPair(
+            new DependencyPropertyLA(transform, ScaleTransform.ScaleXProperty,
+                endScale, false, dur, delay, ez, false, 0),
+            new DependencyPropertyLA(transform, ScaleTransform.ScaleYProperty,
+                endScale, false, dur, delay, ez, false, 0));
         return this;
     }
 
@@ -165,9 +187,15 @@ public sealed class LABuilder
         ScaleTransform transform, double deltaScale,
         double? duration = null, Func<double, double>? easing = null)
     {
-        Add(new ScaleTransformLA(transform, deltaScale, true,
-            duration ?? _defaultDuration, ConsumeDelay(),
-            easing ?? _defaultEasing, ConsumeBarrier()));
+        double dur = duration ?? _defaultDuration;
+        Func<double, double> ez = easing ?? _defaultEasing;
+        double delay = ConsumeDelay();
+
+        AddPair(
+            new DependencyPropertyLA(transform, ScaleTransform.ScaleXProperty,
+                deltaScale, true, dur, delay, ez, false, 0),
+            new DependencyPropertyLA(transform, ScaleTransform.ScaleYProperty,
+                deltaScale, true, dur, delay, ez, false, 0));
         return this;
     }
 
@@ -186,9 +214,9 @@ public sealed class LABuilder
         RotateTransform transform, double endAngle,
         double? duration = null, Func<double, double>? easing = null)
     {
-        Add(new RotateTransformLA(transform, endAngle, false,
+        AddStep(new RotateTransformLA(transform, endAngle, false,
             duration ?? _defaultDuration, ConsumeDelay(),
-            easing ?? _defaultEasing, ConsumeBarrier()));
+            easing ?? _defaultEasing, false));
         return this;
     }
 
@@ -204,9 +232,9 @@ public sealed class LABuilder
         RotateTransform transform, double deltaAngle,
         double? duration = null, Func<double, double>? easing = null)
     {
-        Add(new RotateTransformLA(transform, deltaAngle, true,
+        AddStep(new RotateTransformLA(transform, deltaAngle, true,
             duration ?? _defaultDuration, ConsumeDelay(),
-            easing ?? _defaultEasing, ConsumeBarrier()));
+            easing ?? _defaultEasing, false));
         return this;
     }
 
@@ -229,13 +257,13 @@ public sealed class LABuilder
         double dur = duration ?? _defaultDuration;
         Func<double, double> ez = easing ?? _defaultEasing;
         double delay = ConsumeDelay();
-        bool barrier = ConsumeBarrier();
 
-        // X,Y 作为两个并行子动作,只有 X 承担序列门与延迟, Y 与之并行
-        Add(new DependencyPropertyLA(transform, TranslateTransform.XProperty,
-                endX, false, dur, delay, ez, barrier));
-        Add(new DependencyPropertyLA(transform, TranslateTransform.YProperty,
-            endY, false, dur, delay, ez, false));
+        // X/Y 同属一步: 一起等待前序, 一起开始, 互不视为对方的前序
+        AddPair(
+            new DependencyPropertyLA(transform, TranslateTransform.XProperty,
+                endX, false, dur, delay, ez, false),
+            new DependencyPropertyLA(transform, TranslateTransform.YProperty,
+                endY, false, dur, delay, ez, false));
         return this;
     }
 
@@ -255,12 +283,12 @@ public sealed class LABuilder
         double dur = duration ?? _defaultDuration;
         Func<double, double> ez = easing ?? _defaultEasing;
         double delay = ConsumeDelay();
-        bool barrier = ConsumeBarrier();
 
-        Add(new DependencyPropertyLA(transform, TranslateTransform.XProperty,
-            deltaX, true, dur, delay, ez, barrier));
-        Add(new DependencyPropertyLA(transform, TranslateTransform.YProperty,
-            deltaY, true, dur, delay, ez, false));
+        AddPair(
+            new DependencyPropertyLA(transform, TranslateTransform.XProperty,
+                deltaX, true, dur, delay, ez, false),
+            new DependencyPropertyLA(transform, TranslateTransform.YProperty,
+                deltaY, true, dur, delay, ez, false));
         return this;
     }
 
@@ -279,9 +307,9 @@ public sealed class LABuilder
         SolidColorBrush brush, Color endColor,
         double? duration = null, Func<double, double>? easing = null)
     {
-        Add(new ColorLA(brush, endColor,
+        AddStep(new ColorLA(brush, endColor,
                 duration ?? _defaultDuration, ConsumeDelay(),
-                easing ?? _defaultEasing, ConsumeBarrier()));
+                easing ?? _defaultEasing, false));
         return this;
     }
 
@@ -299,14 +327,14 @@ public sealed class LABuilder
         DependencyObject target, DependencyProperty property, Color endColor,
         double? duration = null, Func<double, double>? easing = null)
     {
-        var brush = target.GetValue(property) as SolidColorBrush;
-        if (brush == null)
+        // 构建期即校验属性类型, 让错误尽早暴露;
+        // 冻结晶刷的克隆与回设推迟到动画真正启动时执行。
+        if (target.GetValue(property) is not SolidColorBrush)
             throw new InvalidOperationException($"Property {property.Name} is not a SolidColorBrush");
 
-        Add(new ColorLA(brush, endColor,
+        AddStep(new ColorLA(target, property, endColor,
                 duration ?? _defaultDuration, ConsumeDelay(),
-                easing ?? _defaultEasing, ConsumeBarrier(),
-                target, property));
+                easing ?? _defaultEasing, false));
         return this;
     }
 
@@ -314,13 +342,13 @@ public sealed class LABuilder
     // 回调
 
     /// <summary>
-    /// 插入一段代码回调(时长为 0, 可带延迟)  常用于序列中触发状态变更
+    /// 插入一段代码回调(时长为 0, 可带延迟)。常用于序列中触发状态变更。
     /// </summary>
     /// <param name="action"></param>
     /// <returns></returns>
     public LABuilder Callback(Action action)
     {
-        Add(new CallbackLA(action, ConsumeDelay(), ConsumeBarrier()));
+        AddStep(new CallbackLA(action, ConsumeDelay(), false));
         return this;
     }
 
@@ -339,9 +367,16 @@ public sealed class LABuilder
         SkewTransform transform, double endAngle,
         double? duration = null, Func<double, double>? easing = null)
     {
-        Add(new SkewTransformLA(transform, endAngle, false,
-            duration ?? _defaultDuration, ConsumeDelay(),
-            easing ?? _defaultEasing, ConsumeBarrier()));
+        double dur = duration ?? _defaultDuration;
+        Func<double, double> ez = easing ?? _defaultEasing;
+        double delay = ConsumeDelay();
+
+        // AngleX / AngleY 同步偏斜且同属一步
+        AddPair(
+            new DependencyPropertyLA(transform, SkewTransform.AngleXProperty,
+                endAngle, false, dur, delay, ez, false),
+            new DependencyPropertyLA(transform, SkewTransform.AngleYProperty,
+                endAngle, false, dur, delay, ez, false));
         return this;
     }
 
@@ -357,9 +392,15 @@ public sealed class LABuilder
         SkewTransform transform, double deltaAngle,
         double? duration = null, Func<double, double>? easing = null)
     {
-        Add(new SkewTransformLA(transform, deltaAngle, true,
-            duration ?? _defaultDuration, ConsumeDelay(),
-            easing ?? _defaultEasing, ConsumeBarrier()));
+        double dur = duration ?? _defaultDuration;
+        Func<double, double> ez = easing ?? _defaultEasing;
+        double delay = ConsumeDelay();
+
+        AddPair(
+            new DependencyPropertyLA(transform, SkewTransform.AngleXProperty,
+                deltaAngle, true, dur, delay, ez, false),
+            new DependencyPropertyLA(transform, SkewTransform.AngleYProperty,
+                deltaAngle, true, dur, delay, ez, false));
         return this;
     }
 
@@ -459,13 +500,15 @@ public sealed class LABuilder
         _group.OnComplete = callback;
         return this;
     }
+
     /// <summary>
     /// 构建并返回动画组(不立即启动)
     /// </summary>
     /// <returns></returns>
     public LAGroup BuildGroup() => _group;
+
     /// <summary>
-    /// 注册并启动动画,返回动画组名称,可用于后续 Stop 查询
+    /// 注册并启动动画, 返回动画组名称, 可用于后续 Stop 查询
     /// </summary>
     /// <returns></returns>
     public string Play()
@@ -477,7 +520,30 @@ public sealed class LABuilder
 
     // 内部工具
 
-    private void Add(ILAAction action) => _group.AddAction(action);
+    /// <summary>
+    /// 加入一个普通动作: 消费序列门并把它归入新的一步。
+    /// </summary>
+    private void AddStep(ILAAction action)
+    {
+        bool barrier = _sequenceBarrier;
+        _sequenceBarrier = false;
+        _step++;
+        _group.AddAction(action, barrier, _step);
+    }
+
+    /// <summary>
+    /// 加入一个由两个子动作组成的组合动作 (如 Move 的 X/Y)。
+    /// 两个子动作共享同一个步骤号与序列门: 会一起等待前序、一起开始,
+    /// 且彼此之间不算前序, 否则后一个会被前一个卡住。
+    /// </summary>
+    private void AddPair(ILAAction first, ILAAction second)
+    {
+        bool barrier = _sequenceBarrier;
+        _sequenceBarrier = false;
+        _step++;
+        _group.AddAction(first, barrier, _step);
+        _group.AddAction(second, barrier, _step);
+    }
 
     /// <summary>
     /// 消费并清除一次性延迟
@@ -488,16 +554,5 @@ public sealed class LABuilder
         double d = _pendingDelay;
         _pendingDelay = 0;
         return d;
-    }
-
-    /// <summary>
-    /// 消费序列门标记: 返回下一个动作是否等待前序,随后清除
-    /// </summary>
-    /// <returns></returns>
-    private bool ConsumeBarrier()
-    {
-        bool b = _sequenceBarrier;
-        _sequenceBarrier = false;
-        return b;
     }
 }

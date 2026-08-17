@@ -2,7 +2,7 @@
   "version": 4,
   "targets": {
     "net10.0-windows": {
-      "LivelyAnimationEngine/1.0.0": {
+      "LivelyAnimationEngine/1.1.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v10.0",
         "compile": {
@@ -18,7 +18,7 @@
     }
   },
   "libraries": {
-    "LivelyAnimationEngine/1.0.0": {
+    "LivelyAnimationEngine/1.1.0": {
       "type": "project",
       "path": "../LAE/LivelyAnimationEngine.csproj",
       "msbuildProject": "../LAE/LivelyAnimationEngine.csproj"
@@ -26,27 +26,27 @@
   },
   "projectFileDependencyGroups": {
     "net10.0-windows": [
-      "LivelyAnimationEngine >= 1.0.0"
+      "LivelyAnimationEngine >= 1.1.0"
     ]
   },
   "packageFolders": {
-    "C:\\Users\\24813\\.nuget\\packages\\": {},
-    "F:\\Software\\VS\\NuGetPackages": {}
+    "C:\\Users\\Ksayus\\.nuget\\packages\\": {},
+    "D:\\Software\\VSShared\\NuGetPackages": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "I:\\Project\\wpf\\repo\\LAE\\UI\\UI.csproj",
+      "projectUniqueName": "F:\\LivelyAnimationEngine-master\\LivelyAnimationEngine\\UI\\UI.csproj",
       "projectName": "UI",
-      "projectPath": "I:\\Project\\wpf\\repo\\LAE\\UI\\UI.csproj",
-      "packagesPath": "C:\\Users\\24813\\.nuget\\packages\\",
-      "outputPath": "I:\\Project\\wpf\\repo\\LAE\\UI\\obj\\",
+      "projectPath": "F:\\LivelyAnimationEngine-master\\LivelyAnimationEngine\\UI\\UI.csproj",
+      "packagesPath": "C:\\Users\\Ksayus\\.nuget\\packages\\",
+      "outputPath": "F:\\LivelyAnimationEngine-master\\LivelyAnimationEngine\\UI\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
-        "F:\\Software\\VS\\NuGetPackages"
+        "D:\\Software\\VSShared\\NuGetPackages"
       ],
       "configFilePaths": [
-        "C:\\Users\\24813\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\Ksayus\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
@@ -62,11 +62,8 @@
           "framework": "net10.0-windows7.0",
           "targetAlias": "net10.0-windows",
           "projectReferences": {
-            "I:\\Project\\wpf\\repo\\LAE\\LAE\\LivelyAnimationEngine.csproj": {
-              "projectPath": "I:\\Project\\wpf\\repo\\LAE\\LAE\\LivelyAnimationEngine.csproj"
-            },
-            "I:\\Project\\wpf\\repo\\LAE\\LivelyAnimationEngine.csproj": {
-              "projectPath": "I:\\Project\\wpf\\repo\\LAE\\LivelyAnimationEngine.csproj"
+            "F:\\LivelyAnimationEngine-master\\LivelyAnimationEngine\\LAE\\LivelyAnimationEngine.csproj": {
+              "projectPath": "F:\\LivelyAnimationEngine-master\\LivelyAnimationEngine\\LAE\\LivelyAnimationEngine.csproj"
             }
           }
         }
@@ -81,7 +78,7 @@
         "auditLevel": "low",
         "auditMode": "all"
       },
-      "SdkAnalysisLevel": "10.0.300"
+      "SdkAnalysisLevel": "10.0.400"
     },
     "frameworks": {
       "net10.0-windows": {
@@ -106,7 +103,7 @@
             "privateAssets": "none"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.302/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.401/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.CSharp": "(,4.7.32767]",
           "Microsoft.VisualBasic": "(,10.4.32767]",

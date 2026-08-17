@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "I:\\Project\\wpf\\repo\\LAE\\LAE\\LivelyAnimationEngine.csproj": {}
+    "F:\\LivelyAnimationEngine-master\\LivelyAnimationEngine\\LAE\\LivelyAnimationEngine.csproj": {}
   },
   "projects": {
-    "I:\\Project\\wpf\\repo\\LAE\\LAE\\LivelyAnimationEngine.csproj": {
-      "version": "1.0.0",
+    "F:\\LivelyAnimationEngine-master\\LivelyAnimationEngine\\LAE\\LivelyAnimationEngine.csproj": {
+      "version": "1.1.0",
       "restore": {
-        "projectUniqueName": "I:\\Project\\wpf\\repo\\LAE\\LAE\\LivelyAnimationEngine.csproj",
+        "projectUniqueName": "F:\\LivelyAnimationEngine-master\\LivelyAnimationEngine\\LAE\\LivelyAnimationEngine.csproj",
         "projectName": "LivelyAnimationEngine",
-        "projectPath": "I:\\Project\\wpf\\repo\\LAE\\LAE\\LivelyAnimationEngine.csproj",
-        "packagesPath": "C:\\Users\\24813\\.nuget\\packages\\",
-        "outputPath": "I:\\Project\\wpf\\repo\\LAE\\LAE\\obj\\",
+        "projectPath": "F:\\LivelyAnimationEngine-master\\LivelyAnimationEngine\\LAE\\LivelyAnimationEngine.csproj",
+        "packagesPath": "C:\\Users\\Ksayus\\.nuget\\packages\\",
+        "outputPath": "F:\\LivelyAnimationEngine-master\\LivelyAnimationEngine\\LAE\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
-          "F:\\Software\\VS\\NuGetPackages"
+          "D:\\Software\\VSShared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\24813\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\Ksayus\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -45,7 +45,7 @@
           "auditLevel": "low",
           "auditMode": "all"
         },
-        "SdkAnalysisLevel": "10.0.300"
+        "SdkAnalysisLevel": "10.0.400"
       },
       "frameworks": {
         "net10.0-windows": {
@@ -70,7 +70,7 @@
               "privateAssets": "none"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.302/PortableRuntimeIdentifierGraph.json",
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.401/PortableRuntimeIdentifierGraph.json",
           "packagesToPrune": {
             "Microsoft.CSharp": "(,4.7.32767]",
             "Microsoft.VisualBasic": "(,10.4.32767]",

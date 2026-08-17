@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "LAE 演示台 (推荐启动项目)": {
+      "commandName": "Project",
+      "nativeDebugging": false
+    }
+  }
+}

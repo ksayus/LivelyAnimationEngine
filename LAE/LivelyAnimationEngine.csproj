@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -7,6 +7,36 @@
     <UseWPF>true</UseWPF>
     <LangVersion>latest</LangVersion>
     <RootNamespace>LAE</RootNamespace>
-    </PropertyGroup>
+    <AssemblyName>LivelyAnimationEngine</AssemblyName>
+    <Version>1.1.0</Version>
+    <Product>LAE — Lively Animation Engine</Product>
+    <Description>轻量高性能的 WPF 流式动画引擎</Description>
+
+    <!--
+      类库默认输出 DLL。为了能够直接在 Visual Studio / dotnet run 中启动调试
+      （即修复“无法直接启动带有‘类库输出类型’的项目，若要调试此项目，请向引用库
+      项目的此解决方案中添加可执行项目”），Debug 配置会额外编译一个极小的宿主入口
+      (DebugHost/) 并把输出类型切换为 WinExe；Release 配置保持纯净的类库输出，
+      发布与引用行为完全不受影响。
+
+      需要恢复纯 DLL 的 Debug 产物时：
+        dotnet build LAE/LivelyAnimationEngine.csproj -c Debug -p:DebugAsExecutable=false
+    -->
+    <DebugAsExecutable Condition="'$(DebugAsExecutable)' == '' And '$(Configuration)' == 'Debug'">true</DebugAsExecutable>
+    <DebugAsExecutable Condition="'$(DebugAsExecutable)' == ''">false</DebugAsExecutable>
+    <OutputType Condition="'$(DebugAsExecutable)' == 'true'">WinExe</OutputType>
+    <StartupObject Condition="'$(DebugAsExecutable)' == 'true'">LAE.DebugHost.DebugProgram</StartupObject>
+  </PropertyGroup>
+
+  <!-- 宿主代码只有在可执行调试模式下才参与编译，绝不进入类库产物 -->
+  <ItemGroup>
+    <Compile Remove="DebugHost/**/*.cs" />
+    <None Include="DebugHost/**/*.cs" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(DebugAsExecutable)' == 'true'">
+    <Compile Include="DebugHost/**/*.cs" />
+    <None Remove="DebugHost/**/*.cs" />
+  </ItemGroup>
 
 </Project>

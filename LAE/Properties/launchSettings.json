@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/launchsettings.json",
+  "profiles": {
+    "LAE 类库调试宿主": {
+      "commandName": "Project",
+      "nativeDebugging": false
+    }
+  }
+}
