@@ -3,41 +3,35 @@ using System.Windows.Media;
 
 namespace LAE
 {
-    /// <summary>
-    /// 引擎内部动画动作契约 (非公开 API)
-    /// </summary>
+    /// <summary>引擎内部的动作契约，不是公开 API</summary>
     internal interface ILAAction
     {
-        /// <summary>动作时长 (毫秒)</summary>
+        /// <summary>动作时长（毫秒）</summary>
         double DurationMs { get; }
-        /// <summary>动作开始前的一次性延迟 (毫秒)</summary>
+        /// <summary>动作开始前的一次性延迟（毫秒）</summary>
         double DelayMs { get; }
-        /// <summary>序列模式中是否等待前序动作完成</summary>
+        /// <summary>序列模式下是否等前序动作完成</summary>
         bool WaitForPrevious { get; }
         /// <summary>动作是否已完成</summary>
         bool IsDone { get; }
-        /// <summary>延迟结束后首次帧调用</summary>
+        /// <summary>延迟结束后的首次帧调用</summary>
         void OnStart();
-        /// <summary>每帧调用, elapsedMs 已扣除延迟</summary>
+        /// <summary>每帧调用，elapsedMs 已经扣掉延迟</summary>
         void Update(double elapsedMs);
     }
 
     /// <summary>
-    /// 单一数值目标动画基类。
-    /// <para>
-    /// 采用 <b>绝对写入</b> 模式: 记录起始值与终点值, 每帧写入
-    /// <c>start + (end - start) * easing(t)</c>。
-    /// 相较逐帧回读属性再累加增量, 该方式没有浮点累积误差,
-    /// 且每帧免除一次 <see cref="DependencyObject.GetValue"/> 装箱回读。
-    /// </para>
+    /// 单个数值目标的动画基类。
+    /// 采用绝对写入：记下起点和终点，每帧写入 <c>start + (end - start) * easing(t)</c>。
+    /// 相比逐帧回读属性再累加增量，这样没有浮点累积误差，每帧也省掉一次装箱回读。
     /// </summary>
     internal abstract class LAActionBase : ILAAction
     {
-        private readonly double _targetValue;   // To 模式为绝对终点; By 模式为相对增量
-        private readonly bool _relative;        // true = By(相对), false = To(绝对)
+        private readonly double _targetValue;   // To 模式是绝对终点，By 模式是相对增量
+        private readonly bool _relative;        // true = By（相对），false = To（绝对）
         private readonly Func<double, double> _easing;
 
-        protected double StartValue;            // OnStart 时回读的真实起点
+        protected double StartValue;            // OnStart 时回读到的真实起点
         protected double EndValue;              // 解析后的绝对终点
 
         public double DurationMs { get; }
@@ -45,15 +39,8 @@ namespace LAE
         public bool WaitForPrevious { get; }
         public bool IsDone { get; private set; }
 
-        /// <summary>
-        /// 构造数值动画。
-        /// </summary>
-        /// <param name="value">To 模式为绝对终点; By 模式为相对增量</param>
-        /// <param name="relative">true=By(相对), false=To(绝对)</param>
-        /// <param name="durationMs">时长(毫秒)</param>
-        /// <param name="delayMs">延迟(毫秒)</param>
-        /// <param name="easing">缓动函数</param>
-        /// <param name="waitForPrevious">序列模式中是否等待前序完成</param>
+        /// <param name="value">To 模式是绝对终点，By 模式是相对增量</param>
+        /// <param name="relative">true 表示 By（相对），false 表示 To（绝对）</param>
         protected LAActionBase(
             double value, bool relative,
             double durationMs, double delayMs,
@@ -64,7 +51,7 @@ namespace LAE
             _relative = relative;
             _easing = easing ?? Easing.Linear;
 
-            // 时长下限 1ms, 避免除零; 延迟不允许为负
+            // 时长下限 1ms，避免除零；延迟不允许为负
             DurationMs = durationMs > 1.0 ? durationMs : 1.0;
             DelayMs = delayMs > 0 ? delayMs : 0;
             WaitForPrevious = waitForPrevious;
@@ -72,8 +59,8 @@ namespace LAE
 
         public void OnStart()
         {
-            // 幂等: 引擎保证每个动作只调用一次, 重复调用也不会累积偏移
-            StartValue = ReadCurrentValue();                 // 回读一次真实起点
+            // 引擎保证每个动作只调一次 OnStart；即便重复调用也不会累积偏移
+            StartValue = ReadCurrentValue();
             EndValue = _relative ? StartValue + _targetValue : _targetValue;
         }
 
@@ -82,16 +69,15 @@ namespace LAE
             if (IsDone) return;
 
             double t = elapsedMs >= DurationMs ? 1.0 : (elapsedMs <= 0 ? 0.0 : elapsedMs / DurationMs);
-            double p = _easing(t);
-            if (p < 0) p = 0;
-            else if (p > 1) p = 1;
 
-            ApplyValue(StartValue + (EndValue - StartValue) * p);
+            // 缓动输出不做 [0,1] 钳制：回弹、弹性这类曲线本来就要越过终点，
+            // 属性自身的取值范围由各动作的上下界负责（见 DependencyPropertyLA）。
+            ApplyValue(StartValue + (EndValue - StartValue) * _easing(t));
 
             if (t >= 1.0) IsDone = true;
         }
 
-        /// <summary>回读目标属性当前值 (仅 OnStart 调用一次)</summary>
+        /// <summary>回读目标属性的当前值，只在 OnStart 调一次</summary>
         protected abstract double ReadCurrentValue();
 
         /// <summary>写入本帧的绝对值</summary>
@@ -99,25 +85,28 @@ namespace LAE
     }
 
     /// <summary>
-    /// 通用依赖属性数值动画 (Move 的 X/Y、Width、Height、Opacity、Scale 等均由此实现)
+    /// 通用的依赖属性数值动画，Move 的 X/Y、Width、Height、Opacity、Scale 都走这里。
     /// </summary>
     internal sealed class DependencyPropertyLA : LAActionBase
     {
         private readonly DependencyObject _target;
         private readonly DependencyProperty _property;
-        private readonly double _minValue;   // 结果下限, 默认 double.NegativeInfinity
+        private readonly double _minValue;   // 结果下限，默认 -∞
+        private readonly double _maxValue;   // 结果上限，默认 +∞
 
         public DependencyPropertyLA(
             DependencyObject target, DependencyProperty property,
             double value, bool relative,
             double duration, double delayMs,
             Func<double, double> easing, bool waitForPrevious,
-            double minValue = double.NegativeInfinity)
+            double minValue = double.NegativeInfinity,
+            double maxValue = double.PositiveInfinity)
             : base(value, relative, duration, delayMs, easing, waitForPrevious)
         {
             _target = target ?? throw new ArgumentNullException(nameof(target));
             _property = property ?? throw new ArgumentNullException(nameof(property));
             _minValue = minValue;
+            _maxValue = maxValue;
         }
 
         protected override double ReadCurrentValue()
@@ -126,13 +115,12 @@ namespace LAE
         protected override void ApplyValue(double value)
         {
             if (value < _minValue) value = _minValue;
+            else if (value > _maxValue) value = _maxValue;
             _target.SetValue(_property, value);
         }
     }
 
-    /// <summary>
-    /// 对 RotateTransform 的 Angle 进行动画
-    /// </summary>
+    /// <summary>对 RotateTransform.Angle 做动画</summary>
     internal sealed class RotateTransformLA : LAActionBase
     {
         private readonly RotateTransform _transform;
@@ -152,11 +140,9 @@ namespace LAE
     }
 
     /// <summary>
-    /// 对 SolidColorBrush 的 Color 进行动画 (sRGB 四通道线性插值)。
-    /// <para>
-    /// 冻结晶刷会在动画启动时克隆并回设到元素上, 因此构建阶段不会产生
-    /// 任何界面副作用; 未冻结的画刷直接就地改写。
-    /// </para>
+    /// 对 SolidColorBrush.Color 做动画，sRGB 四通道线性插值。
+    /// 冻结的画刷在动画启动时克隆并回设到元素上，构建阶段不产生副作用；
+    /// 没冻结的画刷直接就地改写。
     /// </summary>
     internal sealed class ColorLA : ILAAction
     {
@@ -165,7 +151,7 @@ namespace LAE
         private readonly Color _endColor;
         private readonly Func<double, double> _easing;
 
-        private SolidColorBrush _brush = null!;          // OnStart 解析
+        private SolidColorBrush _brush = null!;          // OnStart 时解析
         private double _startA, _startR, _startG, _startB;
         private double _endA, _endR, _endG, _endB;
         private bool _started;
@@ -176,10 +162,8 @@ namespace LAE
         public bool WaitForPrevious { get; }
         public bool IsDone => _done;
 
-        /// <summary>
-        /// 直接对画刷实例做动画。
-        /// </summary>
-        /// <param name="brush">目标画刷 (会被就地改写)</param>
+        /// <summary>直接对画刷实例做动画</summary>
+        /// <param name="brush">目标画刷，会被就地改写</param>
         public ColorLA(
             SolidColorBrush brush, Color endColor,
             double durationMs, double delayMs,
@@ -189,11 +173,8 @@ namespace LAE
             _brush = brush ?? throw new ArgumentNullException(nameof(brush));
         }
 
-        /// <summary>
-        /// 对元素的画刷依赖属性做动画, 自动处理冻结晶刷。
-        /// </summary>
-        /// <param name="target">目标元素</param>
-        /// <param name="property">画刷依赖属性 (如 Shape.FillProperty)</param>
+        /// <summary>对元素上的画刷属性做动画，冻结的画刷会自动克隆</summary>
+        /// <param name="property">画刷依赖属性，例如 <c>Shape.FillProperty</c></param>
         public ColorLA(
             DependencyObject target, DependencyProperty property, Color endColor,
             double durationMs, double delayMs,
@@ -227,7 +208,7 @@ namespace LAE
 
             if (_target != null)
             {
-                // 元素画刷: 冻结晶刷不可写, 克隆后回设
+                // 元素上的画刷：冻结的不可写，克隆一份再回设
                 if (_target.GetValue(_property!) is not SolidColorBrush current)
                     throw new InvalidOperationException(
                         $"Property {_property!.Name} is not a SolidColorBrush");
@@ -249,10 +230,9 @@ namespace LAE
             if (_done) return;
 
             double t = elapsedMs >= DurationMs ? 1.0 : (elapsedMs <= 0 ? 0.0 : elapsedMs / DurationMs);
-            double p = _easing(t);
-            if (p < 0) p = 0;
-            else if (p > 1) p = 1;
+            double p = _easing(t);   // 不钳制，超调由 Mix 的四通道区间兜住
 
+            // 最后一帧直接落到目标色，避免插值尾数留零头
             if (t >= 1.0)
             {
                 _brush.Color = _endColor;
@@ -276,9 +256,7 @@ namespace LAE
         }
     }
 
-    /// <summary>
-    /// 静止停顿动作 (恒为序列分隔点)
-    /// </summary>
+    /// <summary>静止停顿动作，永远是序列分隔点</summary>
     internal sealed class WaitLA : ILAAction
     {
         public double DurationMs { get; }
@@ -302,9 +280,7 @@ namespace LAE
         }
     }
 
-    /// <summary>
-    /// 代码回调动作 (时长 0, 可带延迟)
-    /// </summary>
+    /// <summary>代码回调动作，时长为 0，可以带延迟</summary>
     internal sealed class CallbackLA : ILAAction
     {
         private readonly Action _callback;

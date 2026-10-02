@@ -12,7 +12,7 @@
 - **并行 & 序列** — 默认并行动画，`Then()` 分隔序列
 - **丰富的变换支持** — Move、Scale、Rotate、Skew、Opacity、Width、Height、Color
 - **颜色动画** — sRGB 四通道线性插值，自动处理冻结晶刷
-- **缓动函数** — Linear、OutCubic、InOutCubic、OutPow(n)、InOutPow(n)
+- **缓动函数** — Linear、OutCubic、InOutCubic、OutPow(n)、InOutPow(n)、OutBack、OutElastic、InOutBack
 - **全局速度控制** — 实时调速 0.1x ~ 200x
 - **冻结/解冻** — 批量设置属性时跳过动画更新
 - **命名动画组** — 按名称管理动画生命周期
@@ -67,10 +67,10 @@ LivelyAnimationEngine/
 ├── UI/                            # 演示台 (推荐启动项目)
 │   ├── UI.csproj
 │   ├── App.xaml                   # 深色主题与控件样式
-│   └── MainWindow.xaml(.cs)       # 33 个演示 + 实时代码/日志/性能面板
+│   └── MainWindow.xaml(.cs)       # 37 个演示 + 实时代码/日志/性能面板
 └── Perf/                          # 引擎行为验证
     ├── Perf.csproj
-    └── Program.cs                 # 148 项断言 + 并发基准 + 新旧帧循环对比
+    └── Program.cs                 # 180 项断言 + 并发基准 + 新旧帧循环对比
 ```
 
 ## 运行
@@ -79,7 +79,7 @@ LivelyAnimationEngine/
 # 推荐：完整演示台
 dotnet run --project UI/UI.csproj
 
-# 引擎行为验证（148 项断言 + 并发性能基准）
+# 引擎行为验证（180 项断言 + 并发性能基准）
 dotnet run --project Perf/Perf.csproj
 
 # 与优化前帧循环的同条件性能对比
@@ -203,10 +203,18 @@ Easing.OutCubic                 // 缓出 (默认)
 Easing.InOutCubic               // 缓入缓出
 Easing.OutPow(3)                // 自定义指数缓出
 Easing.InOutPow(5)              // 自定义指数缓入缓出
+Easing.OutBack()                // 回弹缓出: 冲过终点再拉回, 参数是超调强度
+Easing.OutElastic()             // 弹性缓出: 终点附近阻尼振荡, 参数是振荡次数与衰减
+Easing.InOutBack(2.5)           // 回弹缓入缓出: 起手和收尾各超调一次
 ```
 
-所有缓动都保证 `f(0)=0`、`f(1)=1`，输入自动钳制到 `[0,1]`；
+所有缓动都保证 `f(0)=0`、`f(1)=1`，输入超出 `[0,1]` 时按端点取值；
 整数幂走多项式快速路径，不调用 `Math.Pow`。
+
+回弹与弹性曲线不单调，中途会越过终点，这是超调感的来源，因此只适合缩放、位移
+这类允许短暂超出目标值的属性。引擎不钳制缓动输出，超调会真的写进属性；
+`Opacity`、`Width`、`Height` 这类有硬性取值范围的属性由动作自身的结果边界兜住
+（不透明度夹在 0~1，宽高不小于 0），用在它们身上只会被夹平，弹不起来。
 
 ## 架构设计
 
@@ -229,6 +237,10 @@ LAEngine (全局引擎)
 **绝对写入**：数值动画每帧写入 `start + (end - start) * easing(t)`，
 而不是累加增量。这样既没有浮点累积误差，也免除了每帧一次
 `GetValue` 装箱回读。
+
+**结果边界**：缓动输出不做 `[0,1]` 钳制，否则回弹与弹性的超调会被削平；
+取值范围有硬性要求的属性由动作自身的上下界兜住（缩放与宽高不小于 0，
+不透明度夹在 0~1），其余属性允许短暂越过终点。
 
 **步骤门（序列）**：构建器为每个动作分配一个步骤号，`Then()` / `Wait()` 之后的动作
 步骤号更大，必须等更早步骤的全部动作完成后才能开始。同一组合动作（如 `Move` 的 X/Y）

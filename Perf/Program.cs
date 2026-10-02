@@ -49,8 +49,11 @@ internal static class Program
         ColorEndsExactlyOnTarget();
         EasingEndpointsAreExact();
         EasingCurvesAreMonotonic();
+        OvershootEasingCurves();
         SpeedIsClampedToDocumentedRange();
         EasingMismatchCannotStrandProgress();
+        OvershootReachesTheProperty();
+        OvershootIsBoundedByPropertyRange();
         GroupCompletionViaUpdate();
         PublicApiSurfaceIsIntact();
 
@@ -66,7 +69,7 @@ internal static class Program
         }
     }
 
-    // ── infrastructure ────────────────────────────────────────────────
+    // infrastructure
 
     private static void Check(string name, bool condition, string? detail = null)
     {
@@ -87,7 +90,7 @@ internal static class Program
 
     private static LAGroup Group(LABuilder b) => b.BuildGroup();
 
-    // ── tests ─────────────────────────────────────────────────────────
+    // tests
 
     private static void AbsoluteDependencyProperty()
     {
@@ -411,6 +414,38 @@ internal static class Program
         }
     }
 
+    private static void OvershootEasingCurves()
+    {
+        // 回弹 / 弹性曲线不单调，单独校验：端点精确、输入钳制、确实越过了 1。
+        var curves = new (string Name, Func<double, double> Fn)[]
+        {
+            ("OutBack()", Easing.OutBack()),
+            ("OutBack(2.5)", Easing.OutBack(2.5)),
+            ("OutElastic()", Easing.OutElastic()),
+            ("InOutBack()", Easing.InOutBack()),
+        };
+
+        foreach (var (name, fn) in curves)
+        {
+            Near($"overshoot {name}: f(0)", fn(0), 0.0, 1e-12);
+            Near($"overshoot {name}: f(1)", fn(1), 1.0, 1e-12);
+            Near($"overshoot {name}: clamps below 0", fn(-5), 0, 1e-12);
+            Near($"overshoot {name}: clamps above 1", fn(5), 1, 1e-12);
+
+            double max = double.MinValue;
+            bool finite = true;
+            for (int i = 0; i <= 1000; i++)
+            {
+                double v = fn(i / 1000.0);
+                if (double.IsNaN(v) || double.IsInfinity(v)) finite = false;
+                if (v > max) max = v;
+            }
+
+            Check($"overshoot {name}: stays finite", finite);
+            Check($"overshoot {name}: overshoots past 1", max > 1.0, $"max={max:0.#####}");
+        }
+    }
+
     private static void SpeedIsClampedToDocumentedRange()
     {
         double original = LAEngine.Speed;
@@ -445,6 +480,47 @@ internal static class Program
         Check("odd easing: action still completes", g.IsCompleted);
     }
 
+    private static void OvershootReachesTheProperty()
+    {
+        // 回弹曲线的超调必须真的写到属性上，否则只是一条好看的线。
+        var t = new TranslateTransform(0, 0);
+        var g = Group(LA.Builder().Ease(Easing.OutBack()).MoveBy(t, 100, 0, 100));
+
+        double peak = double.MinValue;
+        for (int i = 0; i < 200 && !g.IsCompleted; i++)
+        {
+            g.Update(2);
+            if (t.X > peak) peak = t.X;
+        }
+
+        Check("overshoot: transform passes the endpoint", peak > 100.0, $"peak={peak:0.###}");
+        Near("overshoot: settles exactly on the endpoint", t.X, 100.0, 1e-9);
+    }
+
+    private static void OvershootIsBoundedByPropertyRange()
+    {
+        // 不透明度的合法范围是 0~1，超调不能把它推出去
+        var dot = new Rectangle { Width = 10, Height = 10, Opacity = 0.5 };
+        var g = Group(LA.Builder().Ease(Easing.OutBack()).Opacity(dot, 1.0, 100));
+
+        double max = double.MinValue, min = double.MaxValue;
+        for (int i = 0; i < 200 && !g.IsCompleted; i++)
+        {
+            g.Update(2);
+            if (dot.Opacity > max) max = dot.Opacity;
+            if (dot.Opacity < min) min = dot.Opacity;
+        }
+        Check("opacity: overshoot stays inside 0~1", max <= 1.0 && min >= 0.0,
+            $"min={min:0.###}, max={max:0.###}");
+
+        // 宽度不能为负，否则 WPF 会直接抛异常
+        var box = new Rectangle { Width = 40, Height = 10 };
+        var g2 = Group(LA.Builder().Ease(Easing.InOutBack()).WidthBy(box, -80, 100));
+        Run(g2, 2, 200);
+        Check("width: clamped at zero instead of throwing", box.Width >= 0.0, $"width={box.Width}");
+        Check("width: group still completes", g2.IsCompleted);
+    }
+
     private static void GroupCompletionViaUpdate()
     {
         var t = new TranslateTransform(0, 0);
@@ -470,12 +546,12 @@ internal static class Program
         var brush = new SolidColorBrush(Colors.Red);
         var rect = new Rectangle { Width = 20, Height = 20, Fill = new SolidColorBrush(Colors.Blue) };
 
-        // 构建器入口: 匿名 / 命名
+        // 构建器入口：匿名 / 命名
         Check("api: LA.Builder() 返回构建器", LA.Builder() is LABuilder);
         Check("api: LA.Builder(name) 命名生效",
             LA.Builder("api_named").BuildGroup().Name == "api_named");
 
-        // 全部变换动画 + 属性动画 + 快捷方法, 串联成一条链
+        // 全部变换动画、属性动画和快捷方法串成一条链
         var group = LA.Builder("api_surface")
             .During(300)
             .Ease(Easing.OutCubic)
@@ -550,8 +626,11 @@ internal static class Program
         Check("api: Easing.Linear 可用", Easing.Linear is not null);
         Check("api: Easing.OutCubic 可用", Easing.OutCubic is not null);
         Check("api: Easing.InOutCubic 可用", Easing.InOutCubic is not null);
+        Check("api: Easing.OutBack 可用", Easing.OutBack() is not null);
+        Check("api: Easing.OutElastic 可用", Easing.OutElastic() is not null);
+        Check("api: Easing.InOutBack 可用", Easing.InOutBack() is not null);
 
-        // 让这条超长链实际跑起来, 确认不会卡死
+        // 让这条超长链真跑一遍，确认不会卡死
         int frames = 0;
         while (!group.IsCompleted && frames < 5000)
         {
@@ -667,7 +746,7 @@ internal static class Program
                 double frameDelta = (p - _last) * (_end - _start);
                 _last = p;
 
-                // 原始实现: 每帧回读当前值, 再写回增量
+                // 原始实现：每帧回读当前值，再写回增量
                 double current = Convert.ToDouble(_target.GetValue(_prop));
                 _target.SetValue(_prop, current + frameDelta);
 
@@ -732,7 +811,7 @@ internal static class Program
                     set.Add(g);
                 }
 
-                // 复刻原始 OnRendering: 每帧新建快照列表再遍历
+                // 复刻原始 OnRendering：每帧新建快照列表再遍历
                 var sw = Stopwatch.StartNew();
                 for (int f = 0; f < Frames; f++)
                 {
@@ -762,7 +841,7 @@ internal static class Program
                         .BuildGroup());
                 }
 
-                // 复刻当前 OnRendering: 稳定视图 + 倒序索引遍历, 无每帧分配
+                // 复刻当前 OnRendering：稳定视图 + 倒序索引遍历，无每帧分配
                 var view = new List<LAGroup>(set);
                 var sw = Stopwatch.StartNew();
                 for (int f = 0; f < Frames; f++)

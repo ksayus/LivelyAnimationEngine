@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyDescriptionAttribute("轻量高性能的 WPF 流式动画引擎")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.1.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.1.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.1.0+60b965777757efbacac7630d347fc224f82efda4")]
 [assembly: System.Reflection.AssemblyProductAttribute("LAE — Lively Animation Engine")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LivelyAnimationEngine")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.1.0.0")]

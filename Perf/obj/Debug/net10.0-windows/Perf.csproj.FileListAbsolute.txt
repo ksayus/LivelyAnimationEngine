@@ -19,3 +19,4 @@ F:\LivelyAnimationEngine-master\LivelyAnimationEngine\Perf\obj\Debug\net10.0-win
 F:\LivelyAnimationEngine-master\LivelyAnimationEngine\Perf\obj\Debug\net10.0-windows\LAE.Perf.pdb
 F:\LivelyAnimationEngine-master\LivelyAnimationEngine\Perf\obj\Debug\net10.0-windows\Perf.genruntimeconfig.cache
 F:\LivelyAnimationEngine-master\LivelyAnimationEngine\Perf\obj\Debug\net10.0-windows\ref\LAE.Perf.dll
+F:\LivelyAnimationEngine-master\LivelyAnimationEngine\Perf\obj\Debug\net10.0-windows\Perf.sourcelink.json

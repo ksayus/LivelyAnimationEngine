@@ -12,6 +12,7 @@
       }
     ],
     "additionalProbingPaths": [
+      "C:\\Users\\Ksayus\\.dotnet\\store\\|arch|\\|tfm|",
       "C:\\Users\\Ksayus\\.nuget\\packages",
       "D:\\Software\\VSShared\\NuGetPackages"
     ],

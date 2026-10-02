@@ -50,3 +50,4 @@ F:\LivelyAnimationEngine-master\LivelyAnimationEngine\UI\bin\Debug\net10.0-windo
 F:\LivelyAnimationEngine-master\LivelyAnimationEngine\UI\bin\Debug\net10.0-windows\LivelyAnimationEngine.exe
 F:\LivelyAnimationEngine-master\LivelyAnimationEngine\UI\obj\Debug\net10.0-windows\UI_MarkupCompile.lref
 F:\LivelyAnimationEngine-master\LivelyAnimationEngine\UI\obj\Debug\net10.0-windows\App.baml
+F:\LivelyAnimationEngine-master\LivelyAnimationEngine\UI\obj\Debug\net10.0-windows\UI.sourcelink.json

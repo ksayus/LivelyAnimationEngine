@@ -9,16 +9,9 @@ using System.Windows.Threading;
 namespace LAE.DebugHost;
 
 /// <summary>
-/// 类库的 Debug 专用宿主入口。
-/// <para>
-/// 它的唯一目的是让 <c>LivelyAnimationEngine.csproj</c> 在 Debug 配置下成为可执行项目，
-/// 从而可以直接 F5 启动调试，而不再提示
-/// “无法直接启动带有‘类库输出类型’的项目”。
-/// </para>
-/// <para>
-/// 该文件不参与 Release 编译, 也不会出现在类库产物中。
-/// 完整的引擎演示界面请启动 UI 项目 (推荐设为启动项目)。
-/// </para>
+/// 类库的 Debug 专用宿主入口，唯一目的是让 LivelyAnimationEngine.csproj 在 Debug 配置下
+/// 成为可执行项目，从而能直接 F5 调试，不再提示"无法直接启动带有'类库输出类型'的项目"。
+/// 该文件不参与 Release 编译，也不会进类库产物。
 /// </summary>
 internal static class DebugProgram
 {
@@ -30,9 +23,7 @@ internal static class DebugProgram
     }
 }
 
-/// <summary>
-/// 极简自检窗口: 在类库项目内验证引擎可正常运行
-/// </summary>
+/// <summary>极简自检窗口，用于在类库项目内确认引擎能跑起来</summary>
 internal sealed class DebugHostWindow : Window
 {
     private readonly ScaleTransform _scale = new(1, 1);
@@ -63,7 +54,7 @@ internal sealed class DebugHostWindow : Window
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        // ── 标题 ──
+        // 标题
         var header = new StackPanel();
         header.Children.Add(new TextBlock
         {
@@ -90,7 +81,7 @@ internal sealed class DebugHostWindow : Window
         Grid.SetRow(header, 0);
         root.Children.Add(header);
 
-        // ── 状态栏 ──
+        // 状态栏
         _status = new TextBlock
         {
             FontSize = 12,
@@ -101,7 +92,7 @@ internal sealed class DebugHostWindow : Window
         Grid.SetRow(_status, 1);
         root.Children.Add(_status);
 
-        // ── 演示画布 ──
+        // 演示画布
         var canvas = new Canvas
         {
             Background = new SolidColorBrush(Color.FromRgb(0x11, 0x14, 0x1C)),
@@ -142,7 +133,7 @@ internal sealed class DebugHostWindow : Window
         canvas.Children.Add(caption);
         root.Children.Add(canvas);
 
-        // ── 按钮 ──
+        // 按钮
         var buttons = new StackPanel { Orientation = Orientation.Horizontal };
         buttons.Children.Add(MakeButton("播放一轮动画 (Enter)", Brushes.White,
             new SolidColorBrush(Color.FromRgb(0x2D, 0x7D, 0xD2)), PlayCycle));
@@ -239,7 +230,7 @@ internal sealed class DebugHostWindow : Window
         _translate.X = 0;
         _translate.Y = 0;
 
-        // 颜色动画可能已经把 Fill 换成可写克隆体, 因此统一通过实例引用复位
+        // 颜色动画可能已经把 Fill 换成了可写克隆体，统一按实例引用复位
         if (_brush.IsFrozen)
         {
             _brush = _brush.CloneCurrentValue();
@@ -248,7 +239,7 @@ internal sealed class DebugHostWindow : Window
         _brush.Color = BaseColor;
     }
 
-    /// <summary>最简 ICommand, 仅供按键绑定使用</summary>
+    /// <summary>最简 ICommand，只给按键绑定用</summary>
     private sealed class RelayCommand : System.Windows.Input.ICommand
     {
         private readonly Action _action;

@@ -9,11 +9,8 @@ using LAE;
 namespace UI;
 
 /// <summary>
-/// LAE 交互式演示台。
-/// <para>
-/// 左侧为按类别分组的演示目录, 中间为动画舞台, 右侧实时显示当前演示所使用的
-/// LAE 流式调用与运行日志。
-/// </para>
+/// LAE 交互式演示台：左侧是按类别分组的演示目录，中间是动画舞台，
+/// 右侧实时显示当前演示用到的流式调用和运行日志。
 /// </summary>
 public partial class MainWindow : Window
 {
@@ -45,7 +42,7 @@ public partial class MainWindow : Window
     private Demo? _selected;
     private Demo? _lastPlayed;
 
-    // FPS / 状态采样
+    // 帧率与状态采样
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private long _lastFrames;
     private double _lastSampleMs;
@@ -70,7 +67,7 @@ public partial class MainWindow : Window
         Loaded += (_, _) =>
         {
             Log("LAE 演示台已就绪");
-            Log($"共 {_demos.Count} 个演示, 覆盖变换 / 属性 / 组合 / 缓动 / 引擎控制");
+            Log($"共 {_demos.Count} 个演示，覆盖变换 / 属性 / 组合 / 缓动 / 引擎控制 / 压力测试");
             Log("点击左侧任意演示即可直接在舞台上看到效果");
             Select(_demos[0]);
         };
@@ -82,9 +79,7 @@ public partial class MainWindow : Window
         };
     }
 
-    // ──────────────────────────────────────────────
-    //  舞台
-    // ──────────────────────────────────────────────
+    // 舞台
 
     private void BuildStage()
     {
@@ -140,7 +135,7 @@ public partial class MainWindow : Window
             Background = new SolidColorBrush(Color.FromRgb(0x9B, 0x59, 0xB6))
         };
 
-        // 舞台使用绝对定位, 元素在窗口尺寸变化时重新排布
+        // 舞台用绝对定位，窗口尺寸变化时重新排布
         stage.Children.Add(_card);
         stage.Children.Add(_swatch);
         stage.Children.Add(_opacityDot);
@@ -167,9 +162,7 @@ public partial class MainWindow : Window
         stage.Children.Add(label);
     }
 
-    /// <summary>
-    /// 依据舞台尺寸摆放四个演示目标与标题, 保证不被裁切。
-    /// </summary>
+    /// <summary>按舞台尺寸摆放四个演示目标和标题，避免被裁切</summary>
     private void LayoutStage()
     {
         double w = stage.ActualWidth;
@@ -198,16 +191,14 @@ public partial class MainWindow : Window
         Canvas.SetTop(element, top);
     }
 
-    // ──────────────────────────────────────────────
-    //  演示目录
-    // ──────────────────────────────────────────────
+    // 演示目录
 
     private void BuildDemos()
     {
         void Add(string category, string name, string description, string code, Action run)
             => _demos.Add(new Demo(name, category, description, code, run));
 
-        // ── 变换动画 ──
+        // 变换动画
         Add("变换动画", "相对位移 MoveBy", "TranslateTransform 相对移动",
             """
             LA.Builder("move_by")
@@ -282,7 +273,7 @@ public partial class MainWindow : Window
             () => LA.Builder("skew_by").SkewBy(_skew, 12, 450)
                     .OnComplete(RefreshStatus).Play());
 
-        // ── 属性动画 ──
+        // 属性动画
         Add("属性动画", "颜色 · 元素属性", "对 Shape.FillProperty 做颜色动画",
             """
             LA.Builder("color_element")
@@ -353,7 +344,7 @@ public partial class MainWindow : Window
                     .FadeIn(_opacityDot, 400)
                     .OnComplete(RefreshStatus).Play());
 
-        // ── 组合控制 ──
+        // 组合控制
         Add("组合控制", "序列 Then", "缩放 → 位移 → 旋转 → 变色, 依次执行",
             """
             LA.Builder("sequence")
@@ -419,7 +410,7 @@ public partial class MainWindow : Window
                 .Play();
             """,
             () => LA.Builder("callback")
-                    .Callback(() => SetStatus("Callback 已触发"))
+                    .Callback(() => SetStatus("回调已触发"))
                     .Then().RotateBy(_rotate, 45, 400)
                     .OnComplete(RefreshStatus).Play());
 
@@ -427,7 +418,7 @@ public partial class MainWindow : Window
             """
             LA.Builder("complete")
                 .ScaleBy(_scale, 0.3, 600)
-                .OnComplete(() => SetStatus("OnComplete 触发"))
+                .OnComplete(() => SetStatus("OnComplete 已触发"))
                 .Play();
             """,
             () => LA.Builder("complete")
@@ -453,7 +444,7 @@ public partial class MainWindow : Window
                     .MoveBy(_translate, -160, 0)
                     .OnComplete(RefreshStatus).Play());
 
-        // ── 缓动函数 ──
+        // 缓动函数
         Add("缓动函数", "Linear 线性", "匀速, 无加减速",
             CodeEasing("Easing.Linear"),
             () => RunEasing("easing_linear", Easing.Linear));
@@ -474,7 +465,23 @@ public partial class MainWindow : Window
             CodeEasing("Easing.InOutPow(5)"),
             () => RunEasing("easing_inoutpow5", Easing.InOutPow(5)));
 
-        // ── 引擎控制 ──
+        Add("缓动函数", "OutBack 回弹", "冲过终点再拉回, 适合缩放与位移",
+            CodeEasing("Easing.OutBack()"),
+            () => RunEasing("easing_outback", Easing.OutBack()));
+
+        Add("缓动函数", "OutBack(2.5) 强回弹", "加大超调强度",
+            CodeEasing("Easing.OutBack(2.5)"),
+            () => RunEasing("easing_outback_strong", Easing.OutBack(2.5)));
+
+        Add("缓动函数", "OutElastic 弹性", "终点附近阻尼振荡, 尾音更长",
+            CodeEasing("Easing.OutElastic()"),
+            () => RunEasing("easing_outelastic", Easing.OutElastic()));
+
+        Add("缓动函数", "InOutBack 回弹进出", "起手和收尾各超调一次",
+            CodeEasing("Easing.InOutBack()"),
+            () => RunEasing("easing_inoutback", Easing.InOutBack()));
+
+        // 引擎控制
         Add("引擎控制", "冻结 Freeze", "冻结后动画停止推进, 解冻后继续",
             """
             LAEngine.Freeze();     // 暂停推进
@@ -513,7 +520,7 @@ public partial class MainWindow : Window
             "// 复位变换、画刷与尺寸",
             () => { ResetStage(); SetStatus("舞台已重置"); });
 
-        // ── 压力与颜色 ──
+        // 压力测试
         Add("压力测试", "颜色循环", "连续变色, 演示增量动画叠加",
             """
             for (int i = 0; i < 6; i++)
@@ -579,8 +586,8 @@ public partial class MainWindow : Window
 
     private void RunStress()
     {
-        // 240 组动画同时推进: 验证帧驱动吞吐与分组调度, 同时确认 FPS 仍能稳定在刷新率附近。
-        // 各组的增量与时长完全一致, 因此对共享变换的写入会稳定收敛而不是互相抖动。
+        // 240 组一起推进，看帧驱动的吞吐和分组调度，同时确认帧率还稳得住。
+        // 各组增量和时长完全一致，对共享变换的写入会稳定收敛，不会互相抖动。
         for (int i = 0; i < 240; i++)
         {
             LA.Builder($"stress_{i}")
@@ -646,7 +653,7 @@ public partial class MainWindow : Window
         txtStageTitle.Text = demo.Name;
         txtStageHint.Text = demo.Description;
 
-        // 演示台的核心体验是"点一下就能看到", 因此选中即播放
+        // 演示台的核心是点一下就能看到效果，所以选中即播放
         if (autoPlay)
         {
             ResetStage();
@@ -676,9 +683,7 @@ public partial class MainWindow : Window
         Play(target);
     }
 
-    // ──────────────────────────────────────────────
-    //  引擎控制
-    // ──────────────────────────────────────────────
+    // 引擎控制
 
     private void BtnStopAll_Click(object sender, RoutedEventArgs e) => BtnStopAll(SetStatus);
 
@@ -718,21 +723,19 @@ public partial class MainWindow : Window
 
     private static void ResetBrush(SolidColorBrush brush, Color color)
     {
-        // 动画可能已经把画刷替换成克隆体, 这里只复位不替换引用
+        // 动画可能已经把画刷换成了克隆体，这里只复位颜色，不动引用
         if (!brush.IsFrozen) brush.Color = color;
     }
 
     private void SliderSpeed_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        // XAML 加载期间会先于字段赋值触发, 需要判空
+        // XAML 加载时会先于字段赋值触发，需要判空
         if (sliderSpeed == null || txtSpeed == null) return;
         LAEngine.Speed = sliderSpeed.Value;
         txtSpeed.Text = $"{sliderSpeed.Value:0.0}x";
     }
 
-    // ──────────────────────────────────────────────
-    //  状态与日志
-    // ──────────────────────────────────────────────
+    // 状态与日志
 
     private void OnFrame(object? sender, EventArgs e)
     {

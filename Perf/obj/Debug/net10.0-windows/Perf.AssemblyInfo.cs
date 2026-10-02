@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("LAE.Perf")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+60b965777757efbacac7630d347fc224f82efda4")]
 [assembly: System.Reflection.AssemblyProductAttribute("LAE.Perf")]
 [assembly: System.Reflection.AssemblyTitleAttribute("LAE.Perf")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

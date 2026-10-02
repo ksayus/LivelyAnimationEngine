@@ -21,4 +21,17 @@ F:\LivelyAnimationEngine-master\LivelyAnimationEngine\LAE\obj\Release\net10.0-wi
 F:\LivelyAnimationEngine-master\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\refint\LivelyAnimationEngine.dll
 F:\LivelyAnimationEngine-master\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\LivelyAnimationEngine.pdb
 F:\LivelyAnimationEngine-master\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\ref\LivelyAnimationEngine.dll
+D:\Project\WPF\PaperCoin\LivelyAnimationEngine\LAE\bin\Release\net10.0-windows\LivelyAnimationEngine.deps.json
+D:\Project\WPF\PaperCoin\LivelyAnimationEngine\LAE\bin\Release\net10.0-windows\LivelyAnimationEngine.dll
+D:\Project\WPF\PaperCoin\LivelyAnimationEngine\LAE\bin\Release\net10.0-windows\LivelyAnimationEngine.pdb
+D:\Project\WPF\PaperCoin\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\LivelyAnimationEngine.GeneratedMSBuildEditorConfig.editorconfig
+D:\Project\WPF\PaperCoin\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\LivelyAnimationEngine.AssemblyInfoInputs.cache
+D:\Project\WPF\PaperCoin\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\LivelyAnimationEngine.AssemblyInfo.cs
+D:\Project\WPF\PaperCoin\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\LivelyAnimationEngine.csproj.CoreCompileInputs.cache
+D:\Project\WPF\PaperCoin\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\LivelyAnimationEngine.dll
+D:\Project\WPF\PaperCoin\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\refint\LivelyAnimationEngine.dll
+D:\Project\WPF\PaperCoin\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\LivelyAnimationEngine.pdb
+D:\Project\WPF\PaperCoin\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\ref\LivelyAnimationEngine.dll
+D:\Project\WPF\PaperCoin\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\LivelyAn.91AE91E5.Up2Date
+F:\LivelyAnimationEngine-master\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\LivelyAnimationEngine.sourcelink.json
 F:\LivelyAnimationEngine-master\LivelyAnimationEngine\LAE\obj\Release\net10.0-windows\LivelyAn.91AE91E5.Up2Date

@@ -1,0 +1,11 @@
+I:\Project\wpf\repo\LAE\bin\Debug\net10.0-windows\LivelyAnimationEngine.deps.json
+I:\Project\wpf\repo\LAE\bin\Debug\net10.0-windows\LivelyAnimationEngine.dll
+I:\Project\wpf\repo\LAE\bin\Debug\net10.0-windows\LivelyAnimationEngine.pdb
+I:\Project\wpf\repo\LAE\obj\Debug\net10.0-windows\LivelyAnimationEngine.GeneratedMSBuildEditorConfig.editorconfig
+I:\Project\wpf\repo\LAE\obj\Debug\net10.0-windows\LivelyAnimationEngine.AssemblyInfoInputs.cache
+I:\Project\wpf\repo\LAE\obj\Debug\net10.0-windows\LivelyAnimationEngine.AssemblyInfo.cs
+I:\Project\wpf\repo\LAE\obj\Debug\net10.0-windows\LivelyAnimationEngine.csproj.CoreCompileInputs.cache
+I:\Project\wpf\repo\LAE\obj\Debug\net10.0-windows\LivelyAnimationEngine.dll
+I:\Project\wpf\repo\LAE\obj\Debug\net10.0-windows\refint\LivelyAnimationEngine.dll
+I:\Project\wpf\repo\LAE\obj\Debug\net10.0-windows\LivelyAnimationEngine.pdb
+I:\Project\wpf\repo\LAE\obj\Debug\net10.0-windows\ref\LivelyAnimationEngine.dll
